@@ -1,5 +1,23 @@
 # Compute the Fourier transforms necessary to set up the SOCP.
 
+function get_basis_factor(r, j, xi, xip1)
+    # r =  the value to evaluate at ("x")
+    # j = which of the four basis elements to use
+    # xi = the left hand endpoint of the interval
+    # xip1 = x_{i+1}, or the right hand endpoint of the interval
+    # Switch to monomial basis for jump!!!!!
+    if j == 1
+        basis = (r - xi)^3 / (xip1 - xi)^3
+    elseif j == 2
+        basis = (r - xi)^2 * (r - xip1) / (xip1 - xi)^3
+    elseif j == 3
+        basis = (r - xi) * (r - xip1)^2 / (xip1 - xi)^3
+    else
+        basis = (r - xip1)^3 / (xip1 - xi)^3
+    end
+    return basis
+end
+
 function get_fourier_integrand(r, d, s, n, j, xi, xip1)
     # We've integrated out the theta dependence
     # r = |x|, the argument of the model F(r)
@@ -65,7 +83,14 @@ function get_fourier_deriv_integrand(r, d, s, n, j, xi, xip1)
     return -2 * pi * 1im * omega * basis_factor * exp(-pi * r^2) * r^n * thetaint
 end
 
-function populate_fourier_integrals(n, Fcoefs, Fpcoefs, F4bnd, Fcoefserr, Fpcoefserr)
+function fourth_div_bound(r, j, xi, xip1, n)
+    # This is a fourth derivative bound on the Fourier transform
+    # Additional constant factors are included in the SpherePacking run script.
+    basis_factor = get_basis_factor(r, j, xi, xip1)
+    return r^(n+3) * exp(-pi * r^2) * abs(basis_factor) # The integral is of the absolute value
+end
+
+function populate_fourier_integrals!(n, Fcoefs, Fpcoefs, F4bnd, Fcoefserr, Fpcoefserr)
     # Compute the integrals of the above form.
     # n is the ambient dimension
     # Fcoefs, Fpcoefs and their integral errors indexed by yindex, xinterval, basis_index
@@ -79,7 +104,7 @@ function populate_fourier_integrals(n, Fcoefs, Fpcoefs, F4bnd, Fcoefserr, Fpcoef
                 f = x -> get_fourier_integrand(x, d, ys[yinterval], n, basis_ind, xi, xip1)
                 (v, err) = hquadrature(f, xi, xip1, maxevals = 10^6)
                 if err > 1e-8
-                    println(err)
+                    error("The adaptive quadrature prematurely terminated for Fourier transform computation.")
                 end
                 Fcoefs[yinterval, xinterval, basis_ind] = v
                 Fcoefserr[yinterval, xinterval, basis_ind] = err
@@ -87,7 +112,7 @@ function populate_fourier_integrals(n, Fcoefs, Fpcoefs, F4bnd, Fcoefserr, Fpcoef
                 fp = x -> get_fourier_deriv_integrand(x, d, ys[yinterval], n, basis_ind, xi, xip1)
                 (v, err) = hquadrature(fp, xi, xip1, maxevals = 10^6)
                 if err > 1e-8
-                    println(err)
+                    error("The adaptive quadrature prematurely terminated for Fourier transform computation.")
                 end
                 Fpcoefs[yinterval, xinterval, basis_ind] = v
                 Fpcoefserr[yinterval, xinterval, basis_ind] = err
@@ -95,11 +120,10 @@ function populate_fourier_integrals(n, Fcoefs, Fpcoefs, F4bnd, Fcoefserr, Fpcoef
                     fp4 = x -> fourth_div_bound(x, basis_ind, xi, xip1, n)
                     (v, err) = hquadrature(fp4, xi, xip1, maxevals = 10^6)
                     if err > 1e-8
-                        println(err)
+                        error("The adaptive quadrature prematurely terminated for Fourier transform computation.")
                     end
-                    F4bnd[xinterval, basis_ind] = v #+ err # adding err may be too conservative
-                    # Include the 16 * pi^4 factor if fourier frequencies don't include the pi...
-                    # All factors are included outside of this function
+                    F4bnd[xinterval, basis_ind] = v
+                    # All other constant factors are included outside of this function
                 end
             end
         end
