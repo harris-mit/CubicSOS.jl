@@ -19,8 +19,8 @@ function check_bound_feasibility(rad, Fcoefs, Fpcoefs, F4bnd, num_xs, num_ys)
         push!(X2s, Variable(2,2))
     end
     #delta = Variable(num_yintervals);
-#     constraints = [Q1s[idx] ⪰ 0 for idx in 1:num_xintervals if xs[idx] >= rad];
-#     constraints += [Q2s[idx] ⪰ 0 for idx in 1:num_xintervals if xs[idx] >= rad];
+     # constraints = [Q1s[idx] ⪰ 0 for idx in 1:num_xintervals if xs[idx] >= rad];
+     # constraints += [Q2s[idx] ⪰ 0 for idx in 1:num_xintervals if xs[idx] >= rad];
     constraints = [(Q1s[idx][1,1] + Q1s[idx][2,2])/2 >= norm([Q1s[idx][1,2];(Q1s[idx][1,1] - Q1s[idx][2,2])/2],2)
                     for idx in 1:num_xintervals if xs[idx] >= rad];
     constraints += [(Q2s[idx][1,1] + Q2s[idx][2,2])/2 >= norm([Q2s[idx][1,2];(Q2s[idx][1,1] - Q2s[idx][2,2])/2],2)
@@ -28,8 +28,8 @@ function check_bound_feasibility(rad, Fcoefs, Fpcoefs, F4bnd, num_xs, num_ys)
     # Need all Qs symmetric regardless
     constraints += [Q1s[idx][1,2] == Q1s[idx][2,1] for idx in 1:num_xintervals]
     constraints += [Q2s[idx][1,2] == Q2s[idx][2,1] for idx in 1:num_xintervals]
-#     constraints += [X1s[idx] ⪰ 0 for idx in 1:num_yintervals];
-#     constraints += [X2s[idx] ⪰ 0 for idx in 1:num_yintervals];
+     # constraints += [X1s[idx] ⪰ 0 for idx in 1:num_yintervals];
+     # constraints += [X2s[idx] ⪰ 0 for idx in 1:num_yintervals];
     constraints += [X1s[idx][1,2] == X1s[idx][2,1] for idx in 1:num_yintervals]
     constraints += [X2s[idx][1,2] == X2s[idx][2,1] for idx in 1:num_yintervals]
     constraints += [(X1s[idx][1,1] + X1s[idx][2,2])/2 >= norm([X1s[idx][1,2];(X1s[idx][1,1] - X1s[idx][2,2])/2],2)
@@ -76,8 +76,8 @@ function check_bound_feasibility(rad, Fcoefs, Fpcoefs, F4bnd, num_xs, num_ys)
     # Constrain the interpolating polynomial to equal these values above
     for yintnum = 1:num_yintervals
         # Take a look at polynomial yintnum
-        constraints += [sum(Fcoefs[yintnum, :, :] .* C) - ygap^4 / 384 * sum(absC .* F4bnd) >= X2s[yintnum][2,2]] #left hand endpoint
-        constraints += [sum(Fcoefs[yintnum+1, :, :] .* C) - ygap^4 / 384 * sum(absC .* F4bnd) >= X1s[yintnum][1,1]]
+        constraints += [sum(Fcoefs[yintnum, :, :] .* C) - ygap^4 / 384 * sum(absC .* F4bnd) == X2s[yintnum][2,2]] #left hand endpoint
+        constraints += [sum(Fcoefs[yintnum+1, :, :] .* C) - ygap^4 / 384 * sum(absC .* F4bnd) == X1s[yintnum][1,1]]
         constraints += [sum(Fpcoefs[yintnum, :, :] .* C) * (ys[yintnum+1]-ys[yintnum]) == (X1s[yintnum][2,2] - 3 * X2s[yintnum][2,2] + 2 * X2s[yintnum][1,2])]
         constraints += [sum(Fpcoefs[yintnum+1, :, :] .* C) * (ys[yintnum+1]-ys[yintnum]) == (3 * X1s[yintnum][1,1] - 2 * X1s[yintnum][2,1] - X2s[yintnum][1,1])]
     end
@@ -90,7 +90,7 @@ function check_bound_feasibility(rad, Fcoefs, Fpcoefs, F4bnd, num_xs, num_ys)
     #solve!(problem, () -> SCS.Optimizer()) ### weird results are likely due to SCS inaccuracies
     opt = () -> Mosek.Optimizer(MSK_IPAR_INTPNT_SOLVE_FORM=MSK_SOLVE_DUAL,
                                 #MSK_IPAR_PRESOLVE_USE = 0,
-                                MSK_DPAR_INTPNT_CO_TOL_PFEAS = 1e-6)
+                                MSK_DPAR_INTPNT_CO_TOL_PFEAS = 1e-8)
     solve!(problem, opt)
     @show problem.status
     @show MOI.get(problem.model, MOI.PrimalStatus())

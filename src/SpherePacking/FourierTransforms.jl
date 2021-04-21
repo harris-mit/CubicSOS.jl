@@ -29,7 +29,7 @@ function get_fourier_integrand(r, d, s, n, j, xi, xip1)
     # xip1 = x_{i+1}, or the right hand endpoint of the interval
     # Use the following to pick out which basis to use
     if d != 0
-        println("This requires d = 0 and you're violating that...")
+        error("Fourier integrand requires d = 0")
     end
     thetaint = 0
     basis_factor = get_basis_factor(r, j, xi, xip1)
@@ -45,8 +45,13 @@ function get_fourier_integrand(r, d, s, n, j, xi, xip1)
         if r == 0 || s == 0
             thetaint = 2
         end
+    elseif n == 2
+        thetaint = pi * besselj(0, 2 * pi * r * s)
+        if r == 0 || s == 0
+            thetaint = pi
+        end
     else
-        println("This requires n = 3 or 8 and you're violating that...")
+        error("Unimplemented value of n.")
     end
     return omega * basis_factor * exp(-pi * r^2) * r^(n-1) * thetaint
 end
@@ -62,7 +67,7 @@ function get_fourier_deriv_integrand(r, d, s, n, j, xi, xip1)
     # xip1 = x_{i+1}, or the right hand endpoint of the interval
     # Use the following to pick out which basis to use
     if d != 1
-        println("This requires d = 0 and you're violating that...")
+        error("Fourier integrand derivative requires d = 1")
     end
     thetaint = 0
     basis_factor = get_basis_factor(r, j, xi, xip1)
@@ -77,8 +82,13 @@ function get_fourier_deriv_integrand(r, d, s, n, j, xi, xip1)
         if s == 0 || r == 0
            thetaint = 0
         end
+    elseif n == 2
+        thetaint = -1im * pi * besselj(1, 2 * pi * r * s)
+        if r == 0 || s == 0
+            thetaint = 0
+        end
     else
-        println("This requires n = 3 or 8 and you're violating that...")
+        error("Unimplemented value of n.")
     end
     return -2 * pi * 1im * omega * basis_factor * exp(-pi * r^2) * r^n * thetaint
 end
