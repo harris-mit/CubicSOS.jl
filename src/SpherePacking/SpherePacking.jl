@@ -10,6 +10,7 @@ function check_bound_feasibility(rad, Fcoefs, Fpcoefs, F4bnd, num_xs, num_ys)
     # X1s, X2s, the matrices defining the interpolants of \hat{f}(y) on each y interval
     num_xintervals = num_xs - 1
     num_yintervals = num_ys - 1
+    # Always use lower triangular entry [2,1]
     for idx = 1:num_xintervals
         push!(Q1s, Variable(2,2))
         push!(Q2s, Variable(2,2))
@@ -24,9 +25,6 @@ function check_bound_feasibility(rad, Fcoefs, Fpcoefs, F4bnd, num_xs, num_ys)
         if xs[idx] >= rad
             constraint2x2sdptosocp!(problem, Q1s[idx])
             constraint2x2sdptosocp!(problem, Q2s[idx])
-        else # otherwise just need symmetric for evaluations below to be correct
-            problem.constraints += Q1s[idx][1,2] == Q1s[idx][2,1]
-            problem.constraints += Q2s[idx][1,2] == Q2s[idx][2,1]
         end
     end
 
@@ -45,24 +43,21 @@ function check_bound_feasibility(rad, Fcoefs, Fpcoefs, F4bnd, num_xs, num_ys)
         problem.constraints += Q1s[xind-1][1,1] == Q2s[xind][2,2]
         # Compute d/dx[p_i(x) exp(-pi*x^2)] via product rule and cancelling gives just
         problem.constraints += ((3 * Q1s[xind-1][1,1] - 2 * Q1s[xind-1][2,1] - Q2s[xind-1][1,1])/(xi - xim1) ==
-                         (Q1s[xind][2,2] - 3 * Q2s[xind][2,2] + 2 * Q2s[xind][1,2])/(xip1 - xi))
+                         (Q1s[xind][2,2] - 3 * Q2s[xind][2,2] + 2 * Q2s[xind][2,1])/(xip1 - xi))
     end
 
     # Write out the coefficients of p in the Lagrange-inspired basis
     # used in get_basis_factor of CubicSOS.FourierTransforms.jl
-    C = Variable(num_xintervals, 4)
+    C = Array{Convex.AbstractExpr, 2}(undef, num_xintervals, 4)
     for intnum = 1:num_xintervals
-        problem.constraints += C[intnum, 1] == -Q1s[intnum][1,1]
-        problem.constraints += C[intnum, 2] == -(-2 * Q1s[intnum][1,2] - Q2s[intnum][1,1])
-        problem.constraints += C[intnum, 3] == -(2 * Q2s[intnum][1,2] + Q1s[intnum][2,2])
-        problem.constraints += C[intnum, 4] == Q2s[intnum][2,2]
+        C[intnum, 1] = -Q1s[intnum][1,1]
+        C[intnum, 2] = -(-2 * Q1s[intnum][2,1] - Q2s[intnum][1,1])
+        C[intnum, 3] = -(2 * Q2s[intnum][2,1] + Q1s[intnum][2,2])
+        C[intnum, 4] = Q2s[intnum][2,2]
     end
     # We need to use -p to ensure this is less than 0, so all of these
     # coefficients are minus what they are in the paper.
 
-    # Next, bound the fourth derivative of the interpolant of the fourier transform
-    absC = Variable(size(C))
-    problem.constraints += [absC >= -C, absC >= C]
 
     ygap = ys[2] - ys[1]
     # TODO: We could make this more general, but for the current theory
@@ -70,13 +65,16 @@ function check_bound_feasibility(rad, Fcoefs, Fpcoefs, F4bnd, num_xs, num_ys)
 
     # Finally, this polynomial interpolating the Fourier transform must be nonnegative
     # Constrain the interpolating polynomial to equal these values above
-    delta = ygap^4 / 384 * sum(absC .* F4bnd)
+
+    # Bound the fourth derivative of the interpolant of the fourier transform
+    delta = ygap^4 / 384 * sum(abs.(C .* F4bnd))
+
     for yintnum = 1:num_yintervals
         # Take a look at polynomial yintnum
         problem.constraints += sum(Fcoefs[yintnum, :, :] .* C) - delta >= X2s[yintnum][2,2] #left hand endpoint
         problem.constraints += sum(Fcoefs[yintnum+1, :, :] .* C) - delta >= X1s[yintnum][1,1]
         problem.constraints += (sum(Fpcoefs[yintnum, :, :] .* C) * (ys[yintnum+1]-ys[yintnum])
-                == (X1s[yintnum][2,2] - 3 * X2s[yintnum][2,2] + 2 * X2s[yintnum][1,2]))
+                == (X1s[yintnum][2,2] - 3 * X2s[yintnum][2,2] + 2 * X2s[yintnum][2,1]))
         problem.constraints += (sum(Fpcoefs[yintnum+1, :, :] .* C) * (ys[yintnum+1]-ys[yintnum])
                 == (3 * X1s[yintnum][1,1] - 2 * X1s[yintnum][2,1] - X2s[yintnum][1,1]))
     end
@@ -88,7 +86,7 @@ function check_bound_feasibility(rad, Fcoefs, Fpcoefs, F4bnd, num_xs, num_ys)
 
     opt = () -> Mosek.Optimizer(MSK_IPAR_INTPNT_SOLVE_FORM=MSK_SOLVE_DUAL,
                                 MSK_IPAR_PRESOLVE_USE = 0,
-                                MSK_DPAR_INTPNT_CO_TOL_PFEAS = 1e-8,
+                                MSK_DPAR_INTPNT_CO_TOL_PFEAS = 1e-5,
                                 MSK_DPAR_INTPNT_CO_TOL_NEAR_REL = 1)
     solve!(problem, opt)
     @show problem.status
