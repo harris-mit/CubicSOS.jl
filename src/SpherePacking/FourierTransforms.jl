@@ -3,24 +3,6 @@
 # \int_0^\pi e^{-2 \pi i s r \cos(\theta)} \sin(\theta)^{n-2} d\theta
 # was computed with Mathematica.
 
-"""
-r =  the value to evaluate at ("x")
-j = which of the four basis elements to use
-xi = the left hand endpoint of the interval
-xip1 = x_{i+1}, or the right hand endpoint of the interval
-"""
-function get_basis_factor(r, j, xi, xip1)
-    if j == 1
-        basis = (r - xi)^3 / (xip1 - xi)^3
-    elseif j == 2
-        basis = (r - xi)^2 * (r - xip1) / (xip1 - xi)^3
-    elseif j == 3
-        basis = (r - xi) * (r - xip1)^2 / (xip1 - xi)^3
-    else
-        basis = (r - xip1)^3 / (xip1 - xi)^3
-    end
-    return basis
-end
 
 """
 We've integrated out the theta dependence
@@ -29,7 +11,7 @@ d = the order of the derivative we need
 s = the frequency argument of the fourier transform
 n = the dimension of the problem
 j = which of the four bases to use
-xi = the left hand endpoint of the interval (used for Lagrange basis)
+xi = the left hand endpoint of the interval (used for Hermite basis)
 xip1 = x_{i+1}, or the right hand endpoint of the interval
 Returns the integrand of the Fourier integral.
 TODO: Rather than computing the bessel functions on each evaluation,
@@ -40,7 +22,7 @@ function get_fourier_integrand(r, d, s, n, j, xi, xip1)
         error("Fourier integrand requires d = 0")
     end
     thetaint = 0
-    basis_factor = get_basis_factor(r, j, xi, xip1)
+    basis_factor = get_hermite_basis(r, j, xi, xip1)
     if n == 8
         tpirs = 2 * pi * r * s
         thetaint = 15*(-tpirs * besselj(0, tpirs) + (2 - pi^2 * r^2 * s^2) * besselj(1, tpirs)) / (8 * pi^4 * r^5 * s^5)
@@ -76,7 +58,7 @@ d = the order of the derivative we need
 s = the frequency argument of the fourier transform
 n = the dimension of the problem
 j = which of the four bases to use
-xi = the left hand endpoint of the interval (used for Lagrange basis)
+xi = the left hand endpoint of the interval (used for Hermite basis)
 xip1 = x_{i+1}, or the right hand endpoint of the interval
 Returns the integrand of the Fourier integral.
 """
@@ -85,7 +67,7 @@ function get_fourier_deriv_integrand(r, d, s, n, j, xi, xip1)
         error("Fourier integrand derivative requires d = 1")
     end
     thetaint = 0
-    basis_factor = get_basis_factor(r, j, xi, xip1)
+    basis_factor = get_hermite_basis(r, j, xi, xip1)
     if n == 8
         tpirs = 2 * pi * r * s
         thetaint = 15 * 1im * (3 * pi * r * s * besselj(1, tpirs) + (-6 + pi^2 * r^2 * s^2) * besselj(2,tpirs)) / (8 * pi^4 * r^5 * s^5)
@@ -118,7 +100,7 @@ This is a fourth derivative bound on the Fourier transform
 Additional constant factors are included in the SpherePacking run script.
 """
 function fourth_div_bound(r, j, xi, xip1, n)
-    basis_factor = get_basis_factor(r, j, xi, xip1)
+    basis_factor = get_hermite_basis(r, j, xi, xip1)
     return r^(n+3) * exp(-pi * r^2) * abs(basis_factor) # The integral is of the absolute value
 end
 
