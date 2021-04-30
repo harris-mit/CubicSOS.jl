@@ -23,7 +23,7 @@ function check_bound_feasibility(rad, Fcoefs, Fpcoefs, F4bnd, xs, ys)
 
     C = get_hermite_basis_coefficients(f) # Arrange the spline coefficients in a nice way
 
-    # Constraint delta < delta^4 / 384 * ||f^(4)||
+    # Constrain delta < delta^4 / 384 * ||f^(4)||
     ydelta = ys[2] - ys[1]
     @variable(model, l1_F4bnd)
     @variable(model, delta)
