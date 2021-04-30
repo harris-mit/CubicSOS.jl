@@ -1,8 +1,6 @@
 # This file has the helper functions that constrain interpolating
 # cubic polynomials to be SOS on an interval.
 
-#abstract type CubicSpline end
-
 struct CubicSpline5
     x_vals::AbstractArray # The interpolation x points
     y_vals::Array{VariableRef, 1} # Value at grid points
@@ -87,15 +85,62 @@ function evaluate_cubic(cs::CubicSpline, x)
 end
 
 """
-    constrain_spline_nonnegative(model::AbstractModel, cs::CubicSpline, interval_number)
+    constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, interval_number::Number)
 
 If p is the spline, we add the constraint p >= 0 on the interval given by interval_number
 to model.
 """
-function constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, interval_number)
+function constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, interval_number::Number)
     # For this interval, create the PSD matrices Q1 and Q2:
-    
+    if interval_number >= length(cs)
+        error("There are at most n-1 intervals. This one is out of bounds")
+    end
+    Q1 = @variable(model, [1:2])
+    Q2 = @variable(model, [1:2])
+
+    # The matrix Q_1 is as follows:
+    # p(x_{i+1})  Q1[1]
+    # Q1[1]       Q1[2]
+    # The matrix Q_2 is:
+    # Q2[1]       Q2[2]
+    # Q2[2]       p(x_i)
+    #
+    # We need to add the constraints that
+    # p'(x_i) \Delta_i + 3 p(x_i) = Q_1^{22} + 2 * Q_2^{21}
+    # p'(x_{i+1}) \Delta_i - 3 p(x_{i+1}) = -2*Q_1^{21} - Q_2^{11}
+    # Along with the PSD constraints that Q_1 and Q_2 are PSD.
+
+    delta = cs.x_vals[interval_number + 1] - cs.x_vals[interval_number]
+    @constraint(model, (cs.deriv_vals[interval_number] * delta + 3 * cs.y_vals[interval_number]
+            == Q1[2] + 2 * Q1[1]))
+    @constraint(model, (cs.deriv_vals[interval_number + 1] * delta - 3 * cs.y_vals[interval_number + 1]
+            == - 2 * Q1[1] - Q2[1]))
+
+    constrain_2x2_psd!(model, [cs.y_vals[interval_number + 1], Q1[1], Q1[2]])
+    constrain_2x2_psd!(model, [Q2[1], Q2[2], cs.y_vals[interval_number]])
 end
+
+
+"""
+    constrain_2x2_psd!(model::AbstractModel, x)
+Adds an SOCP constraint that the matrix
+x[1] x[2]
+x[2] x[3]
+is positive semidefinite.
+"""
+function constrain_2x2_psd!(model::AbstractModel, x)
+    @constraint(model, [(x[1] + x[3])/2, (x[1] - x[3])/2, x[2]] in SecondOrderCone())
+end
+
+
+"""
+    length(cs::CubicSpline)
+Returns the number of points used in a spline.
+"""
+Base.length(cs::CubicSpline) = length(cs.x_vals) # Overload
+
+
+#################################################
 
 struct CubicSpline4
     x_vals::AbstractArray # interpolation x values
@@ -318,11 +363,6 @@ CubicSpline = CubicSpline6
 
 # overload basic operators: Finding lengths, adding, constraining positivity
 # Evaluating and plotting.
-"""
-    length(cs::CubicSpline)
-Returns the number of points used in a spline.
-"""
-Base.length(cs::CubicSpline) = length(cs.x_vals) # Overload
 
 
 function get_matrix_representation(cs::CubicSpline)

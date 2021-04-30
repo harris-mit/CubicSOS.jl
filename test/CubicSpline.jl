@@ -41,6 +41,51 @@ delta = (x_vals[2] - x_vals[1]) ^ 4 / 384 * f4bnd
 # (In practice, it looks like it just about meets this bound.)
 @test maximum(abs, true_y - spline_y) < delta
 
+# test 2x2 psd constraint
+model = Model()
+set_optimizer(model, () -> Mosek.Optimizer())
+@variable(model, x)
+@variable(model, y)
+c = 5 # any random number here will do
+mat = [x, c, y]
+constrain_2x2_psd!(model, mat)
+@objective(model, Min, x+y)
+optimize!(model)
+# We know the analytical solution to the problem xy >= 1, min x+y
+@test value(x) == c
+@test value(y) == c
+
+# Now test the nonnegativity constraint:
+model = Model()
+set_optimizer(model, () -> Mosek.Optimizer())
+@variable(model, var_y_vals[1:length(x_vals)])
+@variable(model, var_deriv_vals[1:length(x_vals)])
+cs = CubicSpline(x_vals, var_y_vals, var_deriv_vals)
+for i = 1:length(cs) -1
+    constrain_spline_nonnegative!(model, cs, i)
+end
+@constraint(model, cs.deriv_vals .== true_derivs)
+@variable(model, err)
+@constraint(model, [err; cs.y_vals .- true_vals] in SecondOrderCone())
+@objective(model, Min, err)
+optimize!(model)
+
+# This should be >= 0 everywhere, but should be reasonably close in values...
+xx = minimum(x_vals):(maximum(x_vals)/1000):maximum(x_vals)
+spline_y = value.(evaluate_cubic.(Ref(cs), xx))
+@test all(spline_y .> 0)
+
+# We can plot the functions with the below codes so we know they only become
+# negative after 3.5. Is it reasonably close before that?
+
+# plot(xx, spline_y)
+# plot(xx, my_func.(xx))
+
+xx = minimum(x_vals):(maximum(x_vals)/1000):3.5
+spline_y = value.(evaluate_cubic.(Ref(cs), xx))
+@test maximum(abs,spline_y - my_func.(xx)) < 1e-6
+# There is no theoretical answer for this because we're just minimizing the
+# total interpolation error, so it could force larger errors elsewhere in the domain.
 
 # BUG in MOSEK TOOLS?? Try to reproduce here
 
