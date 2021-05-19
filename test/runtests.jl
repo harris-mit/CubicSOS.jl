@@ -1,6 +1,5 @@
 using CubicSOS, Test
 
 @time begin
-    # @time @testset "Sphere packing" begin include("runSpherePacking.jl")
-    @time @testset "Sphere packing" begin include("runSpherePacking.jl") end
+    @time @testset "Cubic Spline unit tests..." begin include("runCubicSpline.jl") end
 end

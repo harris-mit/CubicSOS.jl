@@ -3,16 +3,17 @@
 
 export CubicSpline
 export constrain_spline_nonnegative!
+export evaluate_cubic, get_hermite_basis
 
 # We want a type to describe any possible field of the spline variable.
 VarOrExpressionOrConstant = Union{VariableRef, GenericAffExpr{T,VariableRef}, T} where T <: Real
 VarOrExpressionOrConstantArray = Array{T, 1} where T <: VarOrExpressionOrConstant
 
-struct CubicSpline8
+struct CubicSpline
     x_vals::AbstractArray # The interpolation x points
     y_vals::VarOrExpressionOrConstantArray # Value at grid points
     deriv_vals::VarOrExpressionOrConstantArray # The derivative value at grid points
-    function CubicSpline8(x_vals::AbstractArray, y_vals::VarOrExpressionOrConstantArray,
+    function CubicSpline(x_vals::AbstractArray, y_vals::VarOrExpressionOrConstantArray,
         deriv_vals::VarOrExpressionOrConstantArray)
         if length(x_vals) != length(y_vals)
             error("Invalid number of function values")
@@ -23,7 +24,6 @@ struct CubicSpline8
         new(x_vals, y_vals, deriv_vals)
     end
 end
-CubicSpline = CubicSpline8
 
 """
     x2idx(cs, x)
@@ -119,7 +119,7 @@ end
 
 
 """
-    evaluate_cubic(cs::CubicSpline, x)
+    evaluate_cubic(cs::CubicSpline, x::Number)
 Evaluates a cubic spline that has a value at a point
 """
 function evaluate_cubic(cs::CubicSpline, x)
@@ -146,29 +146,6 @@ function evaluate_cubic_derivative(cs::CubicSpline, x)
     hermite_basis_coefficients = get_hermite_basis_coefficients_interval(cs, idx)
     return sum(basis_elements .* hermite_basis_coefficients)
 end
-
-# Add information to be able to constrain nonnegativity:
-# struct NonnegCubicSplineCone
-# end
-#
-# struct SplineConstraint1{FT, KWT<:Iterators.Pairs} <: JuMP.AbstractConstraint
-#     _error::FT
-#     cs::CubicSpline
-#     #set::ST
-#     kws::KWT
-# end
-#
-# function JuMP.add_constraint(model::JuMP.Model,
-#     constraint::SplineConstraint1{<:Any, Iterators.Pairs})
-#     constrain_spline_nonnegative!(model, cs, 1)
-# end
-#
-# @constraint(model, cs >= 0)
-#
-# function JuMP.build_constraint(_error::Function, cs::CubicSpline,
-#                                s::MOI.GreaterThan; kws...)
-#     return JuMP.build_constraint(_error, p-s.lower, NonNegPoly(); kws...)
-# end
 
 """
     constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, interval_number::Number)
@@ -218,6 +195,14 @@ function constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, in
     end
 end
 
+"""
+    constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline)
+
+If p is the spline, we add the constraint p >= 0 for all intervals on which p is defined.
+"""
+function constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline)
+    constrain_spline_nonnegative!(model, cs, 1:length(cs)-1)
+end
 
 """
     constrain_2x2_psd!(model::AbstractModel, x)

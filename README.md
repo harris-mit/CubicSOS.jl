@@ -21,6 +21,14 @@ more frequently we will want to define JuMP variables
 
 and instantiate `CubicSpline` with those variables. Then, we can use `p` in our optimization problem.
 
+### Evaluation of spline
+
+The most basic operation one can do with a spline is to evaluate it at a point on its domain. The function
+
+> `evaluate_cubic(p, x)`
+
+calculates the interpolated value of the spline `p` at the point `x`.
+
 ### Basic operations with splines
 
 Suppose we have a real number `a` and two splines `p1` and `p2`. The following operations are defined in the
@@ -31,8 +39,7 @@ natural way:
 - `p1 + a` returns a spline whose values only have been incremented by `a`.
 - `a * p1` return a spline where the value and derivatives have been multiplied by `a`.
 
-
-TODO: Evaluation, coefficients
+If we are adding or subtracting two splines that are defined on the same interpolation points, the resulting spline is also computed on the same points. The two splines must always have the same endpoints. If they are based on different interior points, the result is based on the union of those grids.
 
 ## Nonnegativity constraint of spline
 The spline determines a cubic polynomial over each subinterval. If `p` is a spline, then

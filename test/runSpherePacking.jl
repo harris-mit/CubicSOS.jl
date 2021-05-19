@@ -35,27 +35,9 @@ f, fhat = check_bound_feasibility(rad, Fcoefs, Fpcoefs, F4bnd, xs, ys)
 # Shrink domain of x to improve values/conditioning...
 @show get_opt_radius(3)
 
-close("all")
-fig, ax = get_function_plots(f, fhat, xs, ys, 100)
-#Q1s, Q2s, X1s, X2s = check_bound_feasibility(rad, Fcoefs, Fpcoefs, F4bnd, num_xs, num_ys);
-
-xx = minimum(xs):.01:maximum(xs)
-yy = minimum(ys):.01:maximum(ys)
-plot(xx, exp.(-pi .* xx .^2) .* value.(evaluate_cubic.(Ref(f), xx)))
-plot(yy, value.(evaluate_cubic.(Ref(fhat), yy)))
-
 
 ENV["MPLBACKEND"]="qt5agg"
 using PyPlot
 pygui(true)
-
-num_plot_pts = 1000;
-fig, ax = get_function_plots(Q1s, Q2s, X1s, X2s, xs, ys, num_plot_pts);
-
-
-xs = collect(0:.1:1)
-f = x->cos(x)
-fp = x->-sin(x)
-fvals = f.(xs)
-fpvals = fp.(xs)
-cs = CubicSplineVals1(xs, fvals, fpvals)
+num_plot_pts = 100
+fig, ax = get_function_plots(f, fhat, xs, ys, num_plot_pts)
