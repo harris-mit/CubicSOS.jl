@@ -1,5 +1,6 @@
 module CubicSOS
 
+using Test
 using Convex, Mosek, MosekTools
 using JuMP
 using SumOfSquares, DynamicPolynomials, MathOptInterface

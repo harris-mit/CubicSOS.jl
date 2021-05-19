@@ -1,6 +1,8 @@
 # This file has the helper functions that constrain interpolating
 # cubic polynomials to be SOS on an interval.
 
+export CubicSpline
+export constrain_spline_nonnegative!
 
 # We want a type to describe any possible field of the spline variable.
 VarOrExpressionOrConstant = Union{VariableRef, GenericAffExpr{T,VariableRef}, T} where T <: Real
@@ -66,6 +68,29 @@ function get_hermite_basis(x, j, xi, xip1)
 end
 
 """
+    get_hermite_basis_derivatives(x, j, xi, xip1)
+Evaluate the derivative of the jth Hermite basis element for x
+with respect to x.
+"""
+function get_hermite_basis_derivatives(x, j, xi, xip1)
+    val = 0
+    delta = xip1 - xi
+    t = (x - xi) / delta
+    if j == 1
+        val = 6 * t^2 - 6 * t
+    elseif j == 2
+        val = delta * (3 * t^2 - 4 * t + 1)
+    elseif j == 3
+        val = -6 * t^2 + 6 * t
+    elseif j == 4
+        val = delta * (3 * t^2 - 2 * t)
+    else
+        error("Invalid basis element requested")
+    end
+    return val / delta
+end
+
+"""
     get_hermite_basis_coefficients_interval(cs::CubicSpline, int_num)
 Returns the vector of coefficient variables in the order corresponding
 to the Hermite basis for a particular interval.
@@ -107,6 +132,44 @@ function evaluate_cubic(cs::CubicSpline, x)
     return sum(basis_elements .* hermite_basis_coefficients)
 end
 
+
+"""
+    evaluate_cubic_derivative(cs::CubicSpline, x)
+Evaluates the derivative of a cubic spline that has a value at a point
+"""
+function evaluate_cubic_derivative(cs::CubicSpline, x)
+    idx = x2idx(cs, x)
+    xi = cs.x_vals[idx]
+    xip1 = cs.x_vals[idx + 1]
+    get_one_base_element = j -> get_hermite_basis_derivatives(x, j, xi, xip1)
+    basis_elements = get_one_base_element.(1:4)
+    hermite_basis_coefficients = get_hermite_basis_coefficients_interval(cs, idx)
+    return sum(basis_elements .* hermite_basis_coefficients)
+end
+
+# Add information to be able to constrain nonnegativity:
+# struct NonnegCubicSplineCone
+# end
+#
+# struct SplineConstraint1{FT, KWT<:Iterators.Pairs} <: JuMP.AbstractConstraint
+#     _error::FT
+#     cs::CubicSpline
+#     #set::ST
+#     kws::KWT
+# end
+#
+# function JuMP.add_constraint(model::JuMP.Model,
+#     constraint::SplineConstraint1{<:Any, Iterators.Pairs})
+#     constrain_spline_nonnegative!(model, cs, 1)
+# end
+#
+# @constraint(model, cs >= 0)
+#
+# function JuMP.build_constraint(_error::Function, cs::CubicSpline,
+#                                s::MOI.GreaterThan; kws...)
+#     return JuMP.build_constraint(_error, p-s.lower, NonNegPoly(); kws...)
+# end
+
 """
     constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, interval_number::Number)
 
@@ -143,6 +206,18 @@ function constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, in
     constrain_2x2_psd!(model, [Q2[1], Q2[2], cs.y_vals[interval_number]])
 end
 
+"""
+    constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, interval_numbers::AbstractArray)
+
+If p is the spline, we add the constraint p >= 0 on the intervals given in interval_numbers
+to model.
+"""
+function constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, interval_numbers::AbstractArray)
+    for i in interval_numbers
+        constrain_spline_nonnegative!(model, cs, interval_numbers[i])
+    end
+end
+
 
 """
     constrain_2x2_psd!(model::AbstractModel, x)
@@ -172,26 +247,36 @@ Base.length(cs::CubicSpline) = length(cs.x_vals)
     cs1::CubicSpline + cs2::CubicSpline
 Returns a new cubic spline whose values and derivatives are the sum
 of the values and derivatives of the functions that cs1 and cs2 interpolate.
+If the interpolation points are different, we take their union and evaluate
+values and derivatives using the spline.
 """
 function Base.:+(cs1::CubicSpline, cs2::CubicSpline)
-    if ~all(cs1.x_vals == cs2.x_vals)
-        error("Adding splines require they have same interpolation points")
+    if all(cs1.x_vals == cs2.x_vals) # This is faster if interpolation points are same
+        return CubicSpline(cs1.x_vals, cs1.y_vals .+ cs2.y_vals,
+                            cs1.deriv_vals .+ cs2.deriv_vals)
     end
-    return CubicSpline(cs1.x_vals, cs1.y_vals .+ cs2.y_vals,
-                        cs1.deriv_vals .+ cs2.deriv_vals)
+    x_vals = sort(union(cs1.x_vals, cs2.x_vals))
+    return CubicSpline(x_vals,
+            evaluate_cubic.(Ref(cs1), x_vals) .+ evaluate_cubic.(Ref(cs2), x_vals),
+            evaluate_cubic_derivative.(Ref(cs1), x_vals) .+ evaluate_cubic_derivative.(Ref(cs2), x_vals))
 end
 
 """
     cs1::CubicSpline - cs2::CubicSpline
 Returns a new cubic spline whose values and derivatives are the difference
 of the values and derivatives of the functions that cs1 and cs2 interpolate.
+If the interpolation points are different, we take their union and evaluate
+values and derivatives using the spline.
 """
 function Base.:-(cs1::CubicSpline, cs2::CubicSpline)
-    if ~all(cs1.x_vals == cs2.x_vals)
-        error("Subtracting splines require they have same interpolation points")
+    if all(cs1.x_vals == cs2.x_vals) # This is faster if interpolation points are same
+        return CubicSpline(cs1.x_vals, cs1.y_vals .- cs2.y_vals,
+                            cs1.deriv_vals .- cs2.deriv_vals)
     end
-    return CubicSpline(cs1.x_vals, cs1.y_vals .- cs2.y_vals,
-                        cs1.deriv_vals .- cs2.deriv_vals)
+    x_vals = sort(union(cs1.x_vals, cs2.x_vals))
+    return CubicSpline(x_vals,
+            evaluate_cubic.(Ref(cs1), x_vals) .- evaluate_cubic.(Ref(cs2), x_vals),
+            evaluate_cubic_derivative.(Ref(cs1), x_vals) .- evaluate_cubic_derivative.(Ref(cs2), x_vals))
 end
 
 """
