@@ -45,10 +45,15 @@ If we are adding or subtracting two splines that are defined on the same interpo
 The spline determines a cubic polynomial over each subinterval. If `p` is a spline, then
 the number of intervals is `length(p) - 1`. We can constrain that `p` is nonnegative
 on the `i`th interval by adding the constraint
-> constrain_spline_nonnegative!(model, p, i)
+> `constrain_spline_nonnegative!(model, p, i)`
 
-This can be repeated for every interval on which we want to enforce nonnegativity.
-It is possible and in practice useful to combine this nonnegativity operation with the
+If `i` is an AbstractArray of interval indices, such constraints are added for each interval. Alternatively,
+
+> `constrain_spline_nonnegative!(model, p)`
+
+enforces the constraint on the entire interval on which `p` is defined.
+
+It is possible and in practice useful to combine the nonnegativity condition with the
 basic operations available. For instance we could impose
 | Property      | Code |
 | ----------- | ----------- |
