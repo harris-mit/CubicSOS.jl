@@ -1,4 +1,9 @@
 # Unit tests for the interpolatingCubic.jl methods
+using CubicSOS, Test
+using Convex, Mosek, MosekTools
+using JuMP
+using SumOfSquares, DynamicPolynomials, MathOptInterface
+using HCubature, SpecialFunctions
 
 """
  Tests:
@@ -24,7 +29,8 @@ cs = CubicSpline(x_vals, var_y_vals, var_deriv_vals)
 x_vals_coarse = 1:.2:4
 
 # Test that evaluation of the cubic at endpoints gives back the desired nodes
-@test norm(value.(evaluate_cubic.(Ref(cs), x_vals) .- cs.y_vals)) == 0
+cs2 = CubicSpline(x_vals, true_vals, true_derivs)
+@test norm((evaluate_cubic.(Ref(cs2), x_vals) .- cs2.y_vals)) == 0
 
 @constraint(model, cs.y_vals .== true_vals)
 @constraint(model, cs.deriv_vals .== true_derivs)

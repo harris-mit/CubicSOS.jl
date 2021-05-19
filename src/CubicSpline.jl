@@ -3,7 +3,9 @@
 
 export CubicSpline
 export constrain_spline_nonnegative!
-export evaluate_cubic, get_hermite_basis
+export evaluate_cubic
+export evaluate_cubic_derivative, get_hermite_basis # undocumented
+export constrain_2x2_psd! # for testing only
 
 # We want a type to describe any possible field of the spline variable.
 VarOrExpressionOrConstant = Union{VariableRef, GenericAffExpr{T,VariableRef}, T} where T <: Real
@@ -212,7 +214,7 @@ x[2] x[3]
 is positive semidefinite to model.
 """
 function constrain_2x2_psd!(model::AbstractModel, x)
-    if length(mat) != 3
+    if length(x) != 3
         error("This constraint formulation only works for 2x2 PSD constraints specified in a particular way.")
     end
     @constraint(model, [(x[1] + x[3])/2, (x[1] - x[3])/2, x[2]] in SecondOrderCone())
