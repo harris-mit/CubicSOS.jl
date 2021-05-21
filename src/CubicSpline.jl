@@ -287,7 +287,7 @@ function Base.:-(cs::CubicSpline, t::VarOrExpressionOrConstant)
     return CubicSpline(cs.x_vals, cs.y_vals .- t, cs.deriv_vals)
 end
 function Base.:-(t::VarOrExpressionOrConstant, cs::CubicSpline)
-    return cs - t
+    return CubicSpline(cs.x_vals, t .- cs.y_vals, cs.deriv_vals)
 end
 
 """
