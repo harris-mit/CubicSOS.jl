@@ -88,6 +88,8 @@ true_derivs = my_func_deriv.(x_vals)
 @variable(model, err)
 @constraint(model, [err; cs.y_vals .- true_vals] in SecondOrderCone())
 @objective(model, Min, err)
+set_optimizer(model, () -> Mosek.Optimizer(
+    MSK_DPAR_INTPNT_CO_TOL_DFEAS = 1e-10))
 optimize!(model)
 
 # This should be >= 0 everywhere, but should be reasonably close in values...

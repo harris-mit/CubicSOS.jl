@@ -1,9 +1,11 @@
 # Utils for plotting what the functions look like given the output
+#ENV["MPLBACKEND"]="qt5agg"
+#using PyPlot
 
 """
 Plotting the splines F and Fhat that are output.
 """
-function get_function_plots(f::CubicSpline, fhat::CubicSpline, xs, ys, num_plot_pts = 100)
+function get_function_plots(f::CubicSpline, fhat::CubicSpline, xs, ys, rad, num_plot_pts = 200)
     xx = 0:maximum(xs)/num_plot_pts:maximum(xs)
     yy = 0:maximum(ys)/num_plot_pts:maximum(ys)
 

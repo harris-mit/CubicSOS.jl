@@ -109,7 +109,7 @@ Returns a matrix such that the ith row, jth column is the coefficient of the jth
 polynomial in the ith interval.
 """
 function get_hermite_basis_coefficients(cs::CubicSpline)
-    coefs = Array{GenericAffExpr{T,VariableRef},2}(undef, length(cs) - 1, 4)
+    coefs = Array{GenericAffExpr{Float64,VariableRef},2}(undef, length(cs) - 1, 4)
     for i = 1:length(cs) - 1
         x = get_hermite_basis_coefficients_interval(cs, i)
         for j = 1:4
@@ -177,7 +177,7 @@ function constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, in
 
     delta = cs.x_vals[interval_number + 1] - cs.x_vals[interval_number]
     @constraint(model, (cs.deriv_vals[interval_number] * delta + 3 * cs.y_vals[interval_number]
-            == Q1[2] + 2 * Q1[1]))
+            == Q1[2] + 2 * Q2[2])) # CHECK THIS CHANGE FROM Q1[1] to Q2[2]!!!!
     @constraint(model, (cs.deriv_vals[interval_number + 1] * delta - 3 * cs.y_vals[interval_number + 1]
             == - 2 * Q1[1] - Q2[1]))
 
@@ -291,15 +291,33 @@ function Base.:-(t::VarOrExpressionOrConstant, cs::CubicSpline)
 end
 
 """
-    t::Number * cs::CubicSpline
+    t::VarOrExpressionOrConstant * cs::CubicSpline
 Returns a new cubic spline whose values and derivatives are
 the values of the function t * cs.
+A nonconstant should only be used if the entries of the spline are not variables
+(otherwise there is a convexity issue).
 """
-function Base.:*(cs::CubicSpline, t::Number)
+function Base.:*(cs::CubicSpline, t::VarOrExpressionOrConstant)
     return CubicSpline(cs.x_vals, cs.y_vals .* t, cs.deriv_vals .* t)
 end
-function Base.:*(t::Number, cs::CubicSpline)
+function Base.:*(t::VarOrExpressionOrConstant, cs::CubicSpline)
     return cs * t
+end
+
+"""
+    cs1::CubicSpline * cs2::CubicSpline
+Returns a new cubic spline whose values are pointwise products and derivatives
+are computed from the product rule of two splines.
+At least one of the spline should not be defined by variables or else there will
+be convexity issues.
+"""
+function Base.:*(cs1::CubicSpline, cs2::CubicSpline)
+    if all(cs1.x_vals == cs2.x_vals) # This is faster if interpolation points are same
+        return CubicSpline(cs1.x_vals, cs1.y_vals .* cs2.y_vals,
+                            cs1.deriv_vals .* cs2.y_vals + cs1.y_vals .* cs2.deriv_vals)
+    else
+        error("Must match domains")
+    end
 end
 
 
