@@ -4,7 +4,7 @@
 export CubicSpline
 export constrain_spline_nonnegative!
 export evaluate_cubic
-export evaluate_cubic_derivative, get_hermite_basis # undocumented
+export evaluate_cubic_derivative, get_hermite_basis, get_hermite_basis_coefficients # undocumented
 export constrain_2x2_psd! # for testing only
 
 # We want a type to describe any possible field of the spline variable.

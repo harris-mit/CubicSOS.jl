@@ -2,7 +2,7 @@ module CubicSOS
 
 using Convex, Mosek, MosekTools
 using JuMP
-using MathOptInterface
+using MathOptInterface, LinearAlgebra
 using HCubature, SpecialFunctions
 using Polynomials, SpecialPolynomials
 

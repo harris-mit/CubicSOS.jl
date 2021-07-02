@@ -1,5 +1,8 @@
 using PyCall
-sympy = pyimport("sympy")
+
+export populate_gegenbauer_transform!
+export populate_gegenbauer_transform_analytic!, populate_gegenbauer_transform_d3!
+export compute_from_expansion
 
 """
     scaled_gegenbauer(d, k)
@@ -68,12 +71,12 @@ subinterval will give a_d g_k Q_k(1) by the orthogonality of Q_k.
 Note that matrix index k refers to polynomial index k - 1.
 (i.e. the first entry corresponds to the constant polynomial)
 The computation method uses adaptive quadrature unless the error does not get better
-than 1e-7 and then the integral is computed symbolically.
+than tol and then the integral is computed symbolically.
 """
-function populate_gegenbauer_transform!(Gcoefs, d, xs)
+function populate_gegenbauer_transform!(Gcoefs, d, xs, tol = 1e-7)
     ad = get_ad(d)
     w = x -> (1 - x^2)^((d-3)/2)# weight function
-    x = sympy.symbols("x")
+    x = pyimport("sympy").symbols("x")
     wpoly = (1 - x^2)^((d-3)/2)# weight function
     for k = 1:size(Gcoefs, 1) # coefficients
         print("Finished k = ", k,"\n")
@@ -85,14 +88,14 @@ function populate_gegenbauer_transform!(Gcoefs, d, xs)
                 Qk = convert(Polynomial, scaled_gegenbauer(d, k-1)) # start at 0
                 f = x -> Qk(x) * get_hermite_basis(x, j, xi, xip1) * w(x)
                 (v, err) = hquadrature(f, xi, xip1, maxevals = 10^7, rtol=1e-4)
-                if err > 1e-7
+                if err > tol
                     Qkpoly = poly2sym(Qk)
                     print("The adaptive quadrature premature terminated")
                     @show (k,i,j,err,v)
                     b = get_hermite_basis_poly(j, xi, xip1)
                     b = poly2sym(b)
                     f = Qkpoly * b * wpoly
-                    v = sympy.N(sympy.integrate(f, (x, xi, xip1)))
+                    v = pyimport("sympy").N(pyimport("sympy").integrate(f, (x, xi, xip1)))
                     @show "Analytic v", v
                 end
                 Gcoefs[k,i,j] = v / Qk(1) / ad
@@ -139,22 +142,22 @@ integration. This is much slower.
 function populate_gegenbauer_transform_analytic!(Gcoefs_analytic, d, xs)
     # use analytic integrals
     ad = get_ad(d)
-    x = sympy.symbols("x")
+    x = pyimport("sympy").symbols("x")
     w = (1 - x^2)^((d-3)/2)# weight function
-    for k = 1:size(Gcoefs, 1) # coefficients
+    for k = 1:size(Gcoefs_analytic, 1) # coefficients
         print("Finished k = ", k)
         Qk = convert(Polynomial, scaled_gegenbauer(d, k-1))
         Qk1 = Qk(1) # start at 0
         Qk = poly2sym(Qk)
-        for i = 1:size(Gcoefs, 2) # x interval
-            for j = 1:size(Gcoefs, 3) # 4
+        for i = 1:size(Gcoefs_analytic, 2) # x interval
+            for j = 1:size(Gcoefs_analytic, 3) # 4
                 # Define function to integrate
                 xi = xs[i]
                 xip1 = xs[i + 1]
                 b = get_hermite_basis_poly(j, xi, xip1)
                 b = poly2sym(b)
                 f = Qk * b * w
-                v = sympy.N(sympy.integrate(f, (x, xi, xip1)))
+                v = pyimport("sympy").N(pyimport("sympy").integrate(f, (x, xi, xip1)))
                 Gcoefs_analytic[k,i,j] = v / Qk1 / ad
             end
         end
@@ -181,7 +184,7 @@ end
 Convert a polynomial to a sympy expression.
 """
 function poly2sym(p)
-    x = sympy.symbols("x")
+    x = pyimport("sympy").symbols("x")
     c = p.coeffs
     result = 0
     for i = 1:length(c)

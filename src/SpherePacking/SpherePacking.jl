@@ -1,6 +1,7 @@
 # These are the main implementations of the sphere packing problems cast as
 # second order cone problems
 
+export solve_delsarte_socp, solve_delsarte_socp2, solve_lattice_sphere_packing_socp
 """
     solve_lattice_sphere_packing_socp(rad, Fcoefs, Fpcoefs, F4bnd, xs, ys)
 Solves the Cohn sphere packing bound formulation by assuming the solution is a spline
@@ -162,7 +163,7 @@ end
 Compute the Delsarte bound on a spherical code.
 f is required to be nonpositive on [xs[1], xs[end]]
 We use 1:kmax Gegenbauer polynomials and return their coefficients so that the
-spline interpolant of \sum f_k G_k guarantees that the high degree polynomial
+spline interpolant of sum f_k G_k guarantees that the high degree polynomial
 is nonpositive on the required interval.
 """
 function solve_delsarte_socp2(d, kmax, xs)
