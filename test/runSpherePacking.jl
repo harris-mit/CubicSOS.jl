@@ -1,5 +1,9 @@
+# This file is a driver for SpherePacking.jl, the main second order implementations
+# of the sphere packing problems. It is not use for any testing but rather is
+# a demonstration of how the various functions can be called.
+
 # First solve sphere packing in a lattice, as solved by Cohn et al
-# We precompute the value of the quadrature for each interval and for each b_j(x)
+# Second we solve sphere packing on a compact set, as done for Spherical codes by Delsarte
 
 # Define grids
 xs = 0:0.05:2 # Larger intervals is larger numbers in matrices, but approx accuracy shrinks
@@ -27,19 +31,11 @@ populate_fourier_integrals!(n, xs, ys, omega, Fcoefs, Fpcoefs, F4bnd, Fcoefserr,
 F4bnd = omega * trig_integral * 16 * pi^4 * F4bnd;
 
 # Improve conditioning of matrix by zeroing out non-contributors
-# thresh_tol = 1e-12
-# Fcoefs[abs.(Fcoefs) .< thresh_tol] .= 0
-# Fpcoefs[abs.(Fpcoefs) .< thresh_tol] .= 0
-# F4bnd[abs.(F4bnd) .< thresh_tol] .= 0
 rad = 1. # This means we want to constrain f \leq 0 whenever |x| > rad
-f, fhat, delta = solve_sphere_packing_socp(rad, Fcoefs, Fpcoefs, F4bnd, xs, ys)
+f, fhat, delta = solve_lattice_sphere_packing_socp(rad, Fcoefs, Fpcoefs, F4bnd, xs, ys)
 fmax, fhatmin = check_feasibility(rad, f, fhat, xs, ys)
 @show fhatmin - value(delta)
-# The problem changes from feasible to infeasible at 1.0 to 1.1.
-# At higher resolution, changes from 1.05 to 1.1...
-# Needed to increase the domain of \hat{y}
-# The true optimal density corresponds to a radius of 1.07.
-# Shrink domain of x to improve values/conditioning...
+# Look at where the problem changes from feasible to infeasible at 1.0 to 1.1.
 @show get_opt_radius(n)
 
 
@@ -50,7 +46,9 @@ num_plot_pts = 100
 fig, ax = get_function_plots(f, fhat, xs, ys, rad, num_plot_pts)
 
 
-# Solve the Delsarte sphere packing in a sphere
+# Solve the Delsarte sphere packing in a sphere.
+# This version of the method has some numerical issues because we need to
+# compute the coefficients which are very large.
 Amax = .5
 d = 3
 deltax = .1
@@ -70,52 +68,22 @@ for k = 1:size(Gcoefs, 1)
     @show k, gk[k]
 end
 
-# integrate(b * scaled_gegenbauer(3, 30), .9, 1) blows up at k >= 30
-xx = -1:.01:1
-yy = value.(evaluate_cubic.(Ref(f), xx))
-plot(xx,yy)
-scatter(1:30, gk[1:30], legend = false)
-plot(xx, scaled_gegenbauer(3,50).(xx))
-# When k > unrefined it goes from -1e-9 to -1e-3 :(
-# They proved 13, we have 18 here, an upper bound. Looks good
-# Decreasing delta too small made infeasible? Integrals too small?
-# bound increases when we increase k. Need a better sense
-# for how many coefficients. But right order of magnitude.
 
-# 21.8 for k < 30
-# 22.5 for k < 35
 
-# Check truncated feasibility
-xx = -1:.01:Amax
-gktrunc = gk[1:num_gegenbauer]
-gktrunc[gktrunc .< 0] .= 0
-gkyy = compute_from_expansion.(Ref(d), Ref(gktrunc), xx)
-fyy = value.(evaluate_cubic.(Ref(f), xx))
-sum(gkyy .> 0*1e-8)
-sum(fyy .> 0*1e-8)
-sum(gktrunc .< -1e-8)
-sum(gktrunc .< 0)
-compute_from_expansion(d, gktrunc, 1)
-value(evaluate_cubic(f, 1))
-gk[1]
-
+# Now we compute Delsarte's lower bounds with a more stable method
+# This only involves polynomial evaluation, so we don't deal with large coefficients.
+# The method sets the Gegenbauer coefficients to be the decision variables.
+# We use a low degree cubic spline to certify the nonpositivity condition.
 Amax = cos(pi / 3)
-xs = -1:.005:Amax
-# Warning: we need an "exact hit" where interval length matches Amax
+xs = range(-1, Amax, length =75)
 d = 9
 kmax = 50
 fk = solve_delsarte_socp2(d, kmax, xs)
-gktrunc = value.(fk)[1:7]
-#gktrunc[gktrunc .< 0] .= 0 # !!! YOU CAN'T JUST SET SOME OF THEM TO ZERO. BETTER TO TRUNCATE!!
+# Testing our certificate:
+gktrunc = value.(fk)[1:14] # Truncating off the ones that are basically 0 (and possibly slightly negative.)
 gktrunc[1] = 1
+all(gktrunc .> 0 )
 compute_from_expansion(d, gktrunc, 1)
-xx = -1:.01:Amax
+xx = range(-1, Amax, length =1000)
 yy = compute_from_expansion.(Ref(d), Ref(gktrunc), xx)
 maximum(yy)
-
-yexpanded = compute_from_expansion.(Ref(d), Ref(value.(fk[1:7])), xx)
-ycubic = value.(evaluate_cubic.(Ref(f), xx))
-maximum(abs, yexpanded - ycubic) # This is less than delta = .007!
-plot(xx, yexpanded)
-scatter!(xs, compute_from_expansion.(Ref(d), Ref(value.(fk[1:7])), xs))
-plot!(xx, ycubic)

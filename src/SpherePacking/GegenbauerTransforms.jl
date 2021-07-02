@@ -1,5 +1,6 @@
 using PyCall
 sympy = pyimport("sympy")
+
 """
     scaled_gegenbauer(d, k)
 Scale the C_k (with specialpolynomials) to Q_k
@@ -55,19 +56,20 @@ function get_hermite_basis_poly(j, xi, xip1)
     return p
 end
 
-# Better way than adaptive quadrature? Symbolic?
 
-# """
-#     populate_gegenbauer_transform!(Gcoefs, d, xs)
-# Compute the integrals
-# C_{ikj} = \int_{I_i} Q_k(x) b_j(x) (1-x^2)^((d-3)/2)dx
-# for each subinterval i, polynomial k, and basis element j.
-# Fixing k and taking the dot product of Gcoefs with the spline coefficients for each
-# subinterval will give a_d g_k Q_k(1) by the orthogonality of Q_k.
-#
-# Note that matrix index k refers to polynomial index k - 1.
-# (i.e. the first entry corresponds to the constant polynomial)
-# """
+"""
+    populate_gegenbauer_transform!(Gcoefs, d, xs)
+Compute the integrals
+C_{ikj} = int_{I_i} Q_k(x) b_j(x) (1-x^2)^((d-3)/2)dx
+for each subinterval i, polynomial k, and basis element j.
+Fixing k and taking the dot product of Gcoefs with the spline coefficients for each
+subinterval will give a_d g_k Q_k(1) by the orthogonality of Q_k.
+
+Note that matrix index k refers to polynomial index k - 1.
+(i.e. the first entry corresponds to the constant polynomial)
+The computation method uses adaptive quadrature unless the error does not get better
+than 1e-7 and then the integral is computed symbolically.
+"""
 function populate_gegenbauer_transform!(Gcoefs, d, xs)
     ad = get_ad(d)
     w = x -> (1 - x^2)^((d-3)/2)# weight function
@@ -99,6 +101,13 @@ function populate_gegenbauer_transform!(Gcoefs, d, xs)
     end
 end
 
+
+"""
+    populate_gegenbauer_transform_d3!(Gcoefs, d, xs)
+Computes the same integrals as populate_gegenbauer_transform! but assumes that
+d = 3, so the integrand is a polynomial, and therefore all integrals can be computed
+analytically with Polynomials.jl
+"""
 function populate_gegenbauer_transform_d3!(Gcoefs, d, xs)
     if d != 3
         error("This function assumes d = 3, so w = 1")
@@ -121,6 +130,12 @@ function populate_gegenbauer_transform_d3!(Gcoefs, d, xs)
     end
 end
 
+
+"""
+    populate_gegenbauer_transform_analytic!(Gcoefs_analytic, d, xs)
+Computes the same integrals as populate_gegenbauer_transform! with symbolic
+integration. This is much slower.
+"""
 function populate_gegenbauer_transform_analytic!(Gcoefs_analytic, d, xs)
     # use analytic integrals
     ad = get_ad(d)
@@ -161,6 +176,10 @@ function get_ad(d)
     return v / Qk(1) # This is the same as just v, since Q_0(1) = 1
 end
 
+"""
+    poly2sym(p)
+Convert a polynomial to a sympy expression.
+"""
 function poly2sym(p)
     x = sympy.symbols("x")
     c = p.coeffs
@@ -171,6 +190,11 @@ function poly2sym(p)
     return result
 end
 
+"""
+    compute_from_expansion(d, gk, x)
+If a function is defined by the Gegenbauer coefficients in gk, then compute
+the evaluation of the function at x.
+"""
 function compute_from_expansion(d, gk, x)
     val = 0
     for k = 1:length(gk)
@@ -179,6 +203,11 @@ function compute_from_expansion(d, gk, x)
     return val
 end
 
+"""
+    compute_deriv_from_expansion(d, gk, x)
+If a function is defined by the Gegenbauer coefficients in gk, then compute
+the evaluation of the derivative of the function at x.
+"""
 function compute_deriv_from_expansion(d, gk, x)
     val = 0
     for k = 1:length(gk)
@@ -188,9 +217,14 @@ function compute_deriv_from_expansion(d, gk, x)
 end
 
 
+"""
+    compute_4th_div_bound(d, gk)
+Computes a bound on the 4th derivative of a function defined by the Gegenbauer
+coefficients gk by computing the l1 norm of the coefficients of each term.
+This assumes that gk >= 0.
+This bound is rather weak; consider improving.
+"""
 function compute_4th_div_bound(d, gk)
-    # This is a really weak bound.
-    # Just the l1 norm of the coefficients. Consider improving.
     val = 0
     for k = 1:length(gk)
         fthdiv = derivative(scaled_gegenbauer(d, k-1), 4)

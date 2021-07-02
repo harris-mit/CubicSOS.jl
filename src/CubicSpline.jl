@@ -177,7 +177,7 @@ function constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, in
 
     delta = cs.x_vals[interval_number + 1] - cs.x_vals[interval_number]
     @constraint(model, (cs.deriv_vals[interval_number] * delta + 3 * cs.y_vals[interval_number]
-            == Q1[2] + 2 * Q2[2])) # CHECK THIS CHANGE FROM Q1[1] to Q2[2]!!!!
+            == Q1[2] + 2 * Q2[2])) # CHECK THIS CHANGE FROM Q1[1] to Q2[2]!
     @constraint(model, (cs.deriv_vals[interval_number + 1] * delta - 3 * cs.y_vals[interval_number + 1]
             == - 2 * Q1[1] - Q2[1]))
 

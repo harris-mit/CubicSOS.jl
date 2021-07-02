@@ -1,6 +1,21 @@
-# These are the main tools useful in running tests for the sphere packing application
+# These are the main implementations of the sphere packing problems cast as
+# second order cone problems
 
-function solve_sphere_packing_socp(rad, Fcoefs, Fpcoefs, F4bnd, xs, ys)
+"""
+    solve_lattice_sphere_packing_socp(rad, Fcoefs, Fpcoefs, F4bnd, xs, ys)
+Solves the Cohn sphere packing bound formulation by assuming the solution is a spline
+times an exponential (instead of polynomial times exponential).
+Imposes the sign constraint on the spline by SOCP's with the CubicSpline class.
+Uses the precomputed Fcoefs and Fpcoefs to compute the Fourier transform of the spline
+and its derivatives, so that the Fourier transform can be approximated with a spline
+which can be constrainted to be nonnegative. F4bnd is a fourth derivative bound
+on the fourier transform, xs and ys refer to the discretization grids to use in
+time and frequency domains respectively.
+If xs[i] >= rad, then we constrain -f <= 0 on that subinterval, but not otherwise.
+
+Cohn, Henry, and Noam Elkies. "New upper bounds on sphere packings I." Annals of Mathematics (2003): 689-714.
+"""
+function solve_lattice_sphere_packing_socp(rad, Fcoefs, Fpcoefs, F4bnd, xs, ys)
     # Newest solver designed to use the CubicSpline object to represent splines.
     num_xs = length(xs)
     num_ys = length(ys)
@@ -94,7 +109,18 @@ function check_feasibility(rad, f, fhat, xs, ys)
     return fmax, fhatmin
 end
 
-
+"""
+    solve_delsarte_socp(Amax, Gcoefs, xs)
+Compute the Delsarte bound on a spherical code.
+f is required to be nonpositive on [-1, Amax], Amax < 1
+xs is the discretization use for the spline.
+We compute the Gegenbauer coefficients of the expansion of the spline with Gcoefs
+and require all are nonnegative. This formulation has the problem that the number of
+Gegenbauer coefficients to consider must be fixed ahead of time. The computation
+of the integrals for Gegenbauer expansions are poorly conditioned because of the
+large coefficients of the coefficients, so those expansions may not be accurate
+if too many coefficients are computed.
+"""
 function solve_delsarte_socp(Amax, Gcoefs, xs)
     # Find a cubic spline function and find its Gegenbauer expansion
     num_xs = length(xs)
@@ -131,7 +157,16 @@ function solve_delsarte_socp(Amax, Gcoefs, xs)
     return f
 end
 
+"""
+    solve_delsarte_socp2(d, kmax, xs)
+Compute the Delsarte bound on a spherical code.
+f is required to be nonpositive on [xs[1], xs[end]]
+We use 1:kmax Gegenbauer polynomials and return their coefficients so that the
+spline interpolant of \sum f_k G_k guarantees that the high degree polynomial
+is nonpositive on the required interval.
+"""
 function solve_delsarte_socp2(d, kmax, xs)
+    # Solves the same problem as solve_delsarte_socp but method is to
     # Find Gegenbauer coefficients so that
     # spline of time domain is provably nonpositive on [-1, Amax]
     # !!! Here we assume xs only goes to Amax
@@ -150,14 +185,11 @@ function solve_delsarte_socp2(d, kmax, xs)
     @variable(model, delta)
     deltax = xs[2] - xs[1] # assuming even spacing
     @constraint(model, delta >= compute_4th_div_bound(d, fk) * deltax^4 / 384)
-    #@constraint(model, delta >= deltax^4 / 384)
     constrain_spline_nonnegative!(model, -f - delta)
     @objective(model, Min, compute_from_expansion(d, fk, 1))
 
-    # MOI.set(model, MOI.Silent(), true) # This silences the solver.
     optimize!(model)
     @show termination_status(model)
     @show primal_status(model)
-    @show value(delta)
     return value.(fk)
 end
