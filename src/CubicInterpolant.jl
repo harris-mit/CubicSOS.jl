@@ -1,8 +1,8 @@
 # This file has the helper functions that constrain interpolating
 # cubic polynomials to be SOS on an interval.
 
-export CubicSpline
-export constrain_spline_nonnegative!
+export CubicInterpolant
+export constrain_interpolant_nonnegative!
 export evaluate_cubic
 export evaluate_cubic_derivative, get_hermite_basis, get_hermite_basis_coefficients # undocumented
 export constrain_2x2_psd! # for testing only
@@ -11,11 +11,11 @@ export constrain_2x2_psd! # for testing only
 VarOrExpressionOrConstant = Union{VariableRef, GenericAffExpr{T,VariableRef}, T} where T <: Real
 VarOrExpressionOrConstantArray = Array{T, 1} where T <: VarOrExpressionOrConstant
 
-struct CubicSpline
+struct CubicInterpolant
     x_vals::AbstractArray # The interpolation x points
     y_vals::VarOrExpressionOrConstantArray # Value at grid points
     deriv_vals::VarOrExpressionOrConstantArray # The derivative value at grid points
-    function CubicSpline(x_vals::AbstractArray, y_vals::VarOrExpressionOrConstantArray,
+    function CubicInterpolant(x_vals::AbstractArray, y_vals::VarOrExpressionOrConstantArray,
         deriv_vals::VarOrExpressionOrConstantArray)
         if length(x_vals) != length(y_vals)
             error("Invalid number of function values")
@@ -31,7 +31,7 @@ end
     x2idx(cs, x)
 Get the index that a point x belongs to.
 """
-function x2idx(cs::CubicSpline, x)
+function x2idx(cs::CubicInterpolant, x)
     if x > maximum(cs.x_vals)
         error("x is too large -- out of bounds")
     end
@@ -93,22 +93,22 @@ function get_hermite_basis_derivatives(x, j, xi, xip1)
 end
 
 """
-    get_hermite_basis_coefficients_interval(cs::CubicSpline, int_num)
+    get_hermite_basis_coefficients_interval(cs::CubicInterpolant, int_num)
 Returns the vector of coefficient variables in the order corresponding
 to the Hermite basis for a particular interval.
 """
-function get_hermite_basis_coefficients_interval(cs::CubicSpline, int_num)
+function get_hermite_basis_coefficients_interval(cs::CubicInterpolant, int_num)
     x = [cs.y_vals[int_num], cs.deriv_vals[int_num], cs.y_vals[int_num + 1], cs.deriv_vals[int_num + 1]]
     return x
 end
 
 
 """
-    get_hermite_basis_coefficients(cs::CubicSpline)
+    get_hermite_basis_coefficients(cs::CubicInterpolant)
 Returns a matrix such that the ith row, jth column is the coefficient of the jth
 polynomial in the ith interval.
 """
-function get_hermite_basis_coefficients(cs::CubicSpline)
+function get_hermite_basis_coefficients(cs::CubicInterpolant)
     coefs = Array{GenericAffExpr{Float64,VariableRef},2}(undef, length(cs) - 1, 4)
     for i = 1:length(cs) - 1
         x = get_hermite_basis_coefficients_interval(cs, i)
@@ -121,10 +121,10 @@ end
 
 
 """
-    evaluate_cubic(cs::CubicSpline, x::Number)
+    evaluate_cubic(cs::CubicInterpolant, x::Number)
 Evaluates a cubic spline that has a value at a point
 """
-function evaluate_cubic(cs::CubicSpline, x)
+function evaluate_cubic(cs::CubicInterpolant, x)
     idx = x2idx(cs, x)
     xi = cs.x_vals[idx]
     xip1 = cs.x_vals[idx + 1]
@@ -133,13 +133,17 @@ function evaluate_cubic(cs::CubicSpline, x)
     hermite_basis_coefficients = get_hermite_basis_coefficients_interval(cs, idx)
     return sum(basis_elements .* hermite_basis_coefficients)
 end
-
+"""
+    cs(x)
+Shorthand for evaluation of a spline cs at point x.
+"""
+(cs::CubicInterpolant)(x) = evaluate_cubic(cs, x)
 
 """
-    evaluate_cubic_derivative(cs::CubicSpline, x)
+    evaluate_cubic_derivative(cs::CubicInterpolant, x)
 Evaluates the derivative of a cubic spline that has a value at a point
 """
-function evaluate_cubic_derivative(cs::CubicSpline, x)
+function evaluate_cubic_derivative(cs::CubicInterpolant, x)
     idx = x2idx(cs, x)
     xi = cs.x_vals[idx]
     xip1 = cs.x_vals[idx + 1]
@@ -150,12 +154,12 @@ function evaluate_cubic_derivative(cs::CubicSpline, x)
 end
 
 """
-    constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, interval_number::Number)
+    constrain_interpolant_nonnegative!(model::AbstractModel, cs::CubicInterpolant, interval_number::Number)
 
 If p is the spline, we add the constraint p >= 0 on the interval given by interval_number
 to model.
 """
-function constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, interval_number::Number)
+function constrain_interpolant_nonnegative!(model::AbstractModel, cs::CubicInterpolant, interval_number::Number)
     # For this interval, create the PSD matrices Q1 and Q2:
     if interval_number >= length(cs)
         error("There are at most n-1 intervals. This one is out of bounds")
@@ -186,24 +190,24 @@ function constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, in
 end
 
 """
-    constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, interval_numbers::AbstractArray)
+    constrain_interpolant_nonnegative!(model::AbstractModel, cs::CubicInterpolant, interval_numbers::AbstractArray)
 
 If p is the spline, we add the constraint p >= 0 on the intervals given in interval_numbers
 to model.
 """
-function constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline, interval_numbers::AbstractArray)
+function constrain_interpolant_nonnegative!(model::AbstractModel, cs::CubicInterpolant, interval_numbers::AbstractArray)
     for i in interval_numbers
-        constrain_spline_nonnegative!(model, cs, interval_numbers[i])
+        constrain_interpolant_nonnegative!(model, cs, interval_numbers[i])
     end
 end
 
 """
-    constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline)
+    constrain_interpolant_nonnegative!(model::AbstractModel, cs::CubicInterpolant)
 
 If p is the spline, we add the constraint p >= 0 for all intervals on which p is defined.
 """
-function constrain_spline_nonnegative!(model::AbstractModel, cs::CubicSpline)
-    constrain_spline_nonnegative!(model, cs, 1:length(cs)-1)
+function constrain_interpolant_nonnegative!(model::AbstractModel, cs::CubicInterpolant)
+    constrain_interpolant_nonnegative!(model, cs, 1:length(cs)-1)
 end
 
 """
@@ -224,96 +228,96 @@ end
 # Overload some basic operations on cubic splines.
 
 """
-    length(cs::CubicSpline)
+    length(cs::CubicInterpolant)
 Returns the number of points used in a spline.
 """
-Base.length(cs::CubicSpline) = length(cs.x_vals)
+Base.length(cs::CubicInterpolant) = length(cs.x_vals)
 
 
 """
-    cs1::CubicSpline + cs2::CubicSpline
+    cs1::CubicInterpolant + cs2::CubicInterpolant
 Returns a new cubic spline whose values and derivatives are the sum
 of the values and derivatives of the functions that cs1 and cs2 interpolate.
 If the interpolation points are different, we take their union and evaluate
 values and derivatives using the spline.
 """
-function Base.:+(cs1::CubicSpline, cs2::CubicSpline)
+function Base.:+(cs1::CubicInterpolant, cs2::CubicInterpolant)
     if all(cs1.x_vals == cs2.x_vals) # This is faster if interpolation points are same
-        return CubicSpline(cs1.x_vals, cs1.y_vals .+ cs2.y_vals,
+        return CubicInterpolant(cs1.x_vals, cs1.y_vals .+ cs2.y_vals,
                             cs1.deriv_vals .+ cs2.deriv_vals)
     end
     x_vals = sort(union(cs1.x_vals, cs2.x_vals))
-    return CubicSpline(x_vals,
+    return CubicInterpolant(x_vals,
             evaluate_cubic.(Ref(cs1), x_vals) .+ evaluate_cubic.(Ref(cs2), x_vals),
             evaluate_cubic_derivative.(Ref(cs1), x_vals) .+ evaluate_cubic_derivative.(Ref(cs2), x_vals))
 end
 
 """
-    cs1::CubicSpline - cs2::CubicSpline
+    cs1::CubicInterpolant - cs2::CubicInterpolant
 Returns a new cubic spline whose values and derivatives are the difference
 of the values and derivatives of the functions that cs1 and cs2 interpolate.
 If the interpolation points are different, we take their union and evaluate
 values and derivatives using the spline.
 """
-function Base.:-(cs1::CubicSpline, cs2::CubicSpline)
+function Base.:-(cs1::CubicInterpolant, cs2::CubicInterpolant)
     if all(cs1.x_vals == cs2.x_vals) # This is faster if interpolation points are same
-        return CubicSpline(cs1.x_vals, cs1.y_vals .- cs2.y_vals,
+        return CubicInterpolant(cs1.x_vals, cs1.y_vals .- cs2.y_vals,
                             cs1.deriv_vals .- cs2.deriv_vals)
     end
     x_vals = sort(union(cs1.x_vals, cs2.x_vals))
-    return CubicSpline(x_vals,
+    return CubicInterpolant(x_vals,
             evaluate_cubic.(Ref(cs1), x_vals) .- evaluate_cubic.(Ref(cs2), x_vals),
             evaluate_cubic_derivative.(Ref(cs1), x_vals) .- evaluate_cubic_derivative.(Ref(cs2), x_vals))
 end
 
 """
-    cs::CubicSpline + t::VarOrExpressionOrConstant
+    cs::CubicInterpolant + t::VarOrExpressionOrConstant
 Returns a new cubic spline whose values & derivs are the
 values of the function cs + t. (Derivatives don't change.)
 """
-function Base.:+(cs::CubicSpline, t::VarOrExpressionOrConstant)
-    return CubicSpline(cs.x_vals, cs.y_vals .+ t, cs.deriv_vals)
+function Base.:+(cs::CubicInterpolant, t::VarOrExpressionOrConstant)
+    return CubicInterpolant(cs.x_vals, cs.y_vals .+ t, cs.deriv_vals)
 end
-function Base.:+(t::VarOrExpressionOrConstant, cs::CubicSpline)
+function Base.:+(t::VarOrExpressionOrConstant, cs::CubicInterpolant)
     return t + cs
 end
 
 """
-    cs::CubicSpline - t::VarOrExpressionOrConstant
+    cs::CubicInterpolant - t::VarOrExpressionOrConstant
 Returns a new cubic spline whose values & derivs are
 the values of the function cs - t. (Derivatives don't change.)
 """
-function Base.:-(cs::CubicSpline, t::VarOrExpressionOrConstant)
-    return CubicSpline(cs.x_vals, cs.y_vals .- t, cs.deriv_vals)
+function Base.:-(cs::CubicInterpolant, t::VarOrExpressionOrConstant)
+    return CubicInterpolant(cs.x_vals, cs.y_vals .- t, cs.deriv_vals)
 end
-function Base.:-(t::VarOrExpressionOrConstant, cs::CubicSpline)
-    return CubicSpline(cs.x_vals, t .- cs.y_vals, cs.deriv_vals)
+function Base.:-(t::VarOrExpressionOrConstant, cs::CubicInterpolant)
+    return CubicInterpolant(cs.x_vals, t .- cs.y_vals, cs.deriv_vals)
 end
 
 """
-    t::VarOrExpressionOrConstant * cs::CubicSpline
+    t::VarOrExpressionOrConstant * cs::CubicInterpolant
 Returns a new cubic spline whose values and derivatives are
 the values of the function t * cs.
 A nonconstant should only be used if the entries of the spline are not variables
 (otherwise there is a convexity issue).
 """
-function Base.:*(cs::CubicSpline, t::VarOrExpressionOrConstant)
-    return CubicSpline(cs.x_vals, cs.y_vals .* t, cs.deriv_vals .* t)
+function Base.:*(cs::CubicInterpolant, t::VarOrExpressionOrConstant)
+    return CubicInterpolant(cs.x_vals, cs.y_vals .* t, cs.deriv_vals .* t)
 end
-function Base.:*(t::VarOrExpressionOrConstant, cs::CubicSpline)
+function Base.:*(t::VarOrExpressionOrConstant, cs::CubicInterpolant)
     return cs * t
 end
 
 """
-    cs1::CubicSpline * cs2::CubicSpline
+    cs1::CubicInterpolant * cs2::CubicInterpolant
 Returns a new cubic spline whose values are pointwise products and derivatives
 are computed from the product rule of two splines.
 At least one of the spline should not be defined by variables or else there will
 be convexity issues.
 """
-function Base.:*(cs1::CubicSpline, cs2::CubicSpline)
+function Base.:*(cs1::CubicInterpolant, cs2::CubicInterpolant)
     if all(cs1.x_vals == cs2.x_vals) # This is faster if interpolation points are same
-        return CubicSpline(cs1.x_vals, cs1.y_vals .* cs2.y_vals,
+        return CubicInterpolant(cs1.x_vals, cs1.y_vals .* cs2.y_vals,
                             cs1.deriv_vals .* cs2.y_vals + cs1.y_vals .* cs2.deriv_vals)
     else
         error("Must match domains")
@@ -322,10 +326,10 @@ end
 
 
 """
-    -cs::CubicSpline
+    -cs::CubicInterpolant
 Returns a new cubic spline whose values and derivatives are
 the values of the function -cs.
 """
-function Base.:-(cs::CubicSpline)
+function Base.:-(cs::CubicInterpolant)
     return -1 * cs
 end

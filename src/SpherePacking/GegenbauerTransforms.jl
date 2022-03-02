@@ -22,7 +22,7 @@ function scaled_gegenbauer(d, k)
         if k == 0
             dfactor = 1 #factor is 1 if k = 0
         end
-        p = Chebyshev(v)
+        p = SpecialPolynomials.Chebyshev(v)
     end
     return dfactor * p
 end
@@ -221,18 +221,41 @@ end
 
 
 """
-    compute_4th_div_bound(d, gk)
-Computes a bound on the 4th derivative of a function defined by the Gegenbauer
+    compute_gegenbauer_derivative_bound(d, gk)
+Computes a bound on the (order)th derivative of a function defined by the Gegenbauer
 coefficients gk by computing the l1 norm of the coefficients of each term.
 This assumes that gk >= 0.
-This bound is rather weak; consider improving.
+This bound is rather weak.
 """
-function compute_4th_div_bound(d, gk)
+function compute_gegenbauer_derivative_bound(d, gk, order)
     val = 0
     for k = 1:length(gk)
-        fthdiv = derivative(scaled_gegenbauer(d, k-1), 4)
-        p = convert(Polynomial, fthdiv)
+        fthdiv = derivative(scaled_gegenbauer(d, k-1), order)
+        p = convert(Polynomials.Polynomial, fthdiv)
         val += gk[k] * sum(abs, p.coeffs)
     end
     return val
 end
+
+# UNUSED/ DEPRECATED!!!
+# """
+#     compute_gegenbauer_bounds(d, maxk, xi, xip1, deriv_order)
+# Returns the bounds of the first maxk Gegenbauer polynomials
+# for each interval in xs for derivative of order deriv_order
+# gegenbauer_deriv_bounds is indexed by [k, xinterval]
+# """
+# function compute_gegenbauer_bounds(d, maxk, xs, deriv_order)
+#     num_xs = length(xs) - 1
+#     deriv_bnds = zeros(maxk, num_xs)
+#     for k = 1:maxk
+#         println("Finished k", k)
+#         for xinterval = 1:num_xs
+#             xi = xs[xinterval]
+#             xip1 = xs[xinterval + 1]
+#             Qk = convert(Polynomials.Polynomial, scaled_gegenbauer(d, k))
+#             bnd = univariate_global_optimum(derivative(Qk, deriv_order), xi, xip1)
+#             deriv_bnds[k, xinterval] = bnd
+#         end
+#     end
+#     return deriv_bnds
+# end

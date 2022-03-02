@@ -24,12 +24,12 @@ model = Model()
 set_optimizer(model, () -> Mosek.Optimizer())
 @variable(model, var_y_vals[1:length(x_vals)])
 @variable(model, var_deriv_vals[1:length(x_vals)])
-cs = CubicSpline(x_vals, var_y_vals, var_deriv_vals)
+cs = CubicInterpolant(x_vals, var_y_vals, var_deriv_vals)
 
 x_vals_coarse = 1:.2:4
 
 # Test that evaluation of the cubic at endpoints gives back the desired nodes
-cs2 = CubicSpline(x_vals, true_vals, true_derivs)
+cs2 = CubicInterpolant(x_vals, true_vals, true_derivs)
 @test norm((evaluate_cubic.(Ref(cs2), x_vals) .- cs2.y_vals)) == 0
 
 @constraint(model, cs.y_vals .== true_vals)
@@ -55,7 +55,7 @@ true_derivs = my_func_deriv.(xx)
 @test maximum(abs, true_derivs - spline_y_deriv) < 1e-4
 
 # finer mesh constraint, test adding and resampling...
-cs_fine = CubicSpline(xx, spline_y, spline_y_deriv)
+cs_fine = CubicInterpolant(xx, spline_y, spline_y_deriv)
 @test maximum(abs, value.((cs_fine + cs).y_vals) - 2 * true_y) < 1e-4
 @test maximum(abs, value.((cs_fine + cs).deriv_vals) - 2 * true_derivs) < 1e-4
 @test maximum(abs, value.((cs_fine - cs).y_vals)) < 1e-15
@@ -80,8 +80,8 @@ model = Model()
 set_optimizer(model, () -> Mosek.Optimizer())
 @variable(model, var_y_vals[1:length(x_vals)])
 @variable(model, var_deriv_vals[1:length(x_vals)])
-cs = CubicSpline(x_vals, var_y_vals, var_deriv_vals)
-constrain_spline_nonnegative!(model, cs)
+cs = CubicInterpolant(x_vals, var_y_vals, var_deriv_vals)
+constrain_interpolant_nonnegative!(model, cs)
 
 true_derivs = my_func_deriv.(x_vals)
 @constraint(model, cs.deriv_vals .== true_derivs)
@@ -89,13 +89,15 @@ true_derivs = my_func_deriv.(x_vals)
 @constraint(model, [err; cs.y_vals .- true_vals] in SecondOrderCone())
 @objective(model, Min, err)
 set_optimizer(model, () -> Mosek.Optimizer(
-    MSK_DPAR_INTPNT_CO_TOL_DFEAS = 1e-10))
+    MSK_DPAR_INTPNT_CO_TOL_DFEAS = 1e-10,
+    MSK_DPAR_INTPNT_CO_TOL_PFEAS = 1e-16,
+    ))
 optimize!(model)
 
 # This should be >= 0 everywhere, but should be reasonably close in values...
 xx = minimum(x_vals):(maximum(x_vals)/1000):maximum(x_vals)
-spline_y = value.(evaluate_cubic.(Ref(cs), xx))
-@test all(spline_y .> 0)
+spline_y = value.(cs.(xx))
+@test all(spline_y .> 0) # This is the solver toleance.
 
 # We can plot the functions with the below codes so we know they only become
 # negative after 3.5. Is it reasonably close before that?

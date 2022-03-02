@@ -10,38 +10,38 @@ kmax = 30 # maximum number of Gegenbauer coefficients to include
 d = 3
 Amax = cos(44.3 * pi / 180)
 xs = range(-1, Amax, length =20)
-fk = solve_delsarte_socp2(d, kmax, xs)
+fk = solve_delsarte_socp(d, kmax, xs)
 @test(floor(compute_from_expansion(d, fk, 1)) == 24)
 
 # Upper bound of N for d = 5, angle = 85.39 degrees. Should have N = 11.
 d = 5
 Amax = cos(85.39 * pi / 180)
 xs = range(-1, Amax, length =10)
-fk = solve_delsarte_socp2(d, kmax, xs)
+fk = solve_delsarte_socp(d, kmax, xs)
 @test(floor(compute_from_expansion(d, fk, 1)) == 11)
 
 # Kissing number in d = 3
 Amax = cos(pi / 3)
 d = 3
 xs = range(-1, Amax, length =8)
-fk = solve_delsarte_socp2(d, kmax, xs)
+fk = solve_delsarte_socp(d, kmax, xs)
 @test(floor(compute_from_expansion(d, fk, 1)) == 13)
 
 # Kissing number in d = 8
 d = 8
 xs = range(-1, Amax, length =50)
-fk = solve_delsarte_socp2(d, kmax, xs)
+fk = solve_delsarte_socp(d, kmax, xs)
 @test(floor(compute_from_expansion(d, fk, 1)) == 240)
 
  # Kissing number in d = 9
 xs = range(-1, Amax, length =75)
 d = 9
-fk = solve_delsarte_socp2(d, kmax, xs)
+fk = solve_delsarte_socp(d, kmax, xs)
 @test(floor(compute_from_expansion(d, fk, 1)) == 380)
 
 # Kissing number in d = 16
 d = 16
 xs = range(-1, Amax, length =100)
-fk = solve_delsarte_socp2(d, kmax, xs)
+fk = solve_delsarte_socp(d, kmax, xs)
 @test(floor(compute_from_expansion(d, fk, 1)) >=  8313)
 # Will need more refined xs to meet bound more closely

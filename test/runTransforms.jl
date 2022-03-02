@@ -6,7 +6,7 @@ xs = -1:deltax:1
 num_xs = length(xs)
 f = x -> x^2 + sin(x)
 fp = x -> 2 * x + cos(x)
-p = CubicSpline(xs, f.(xs), fp.(xs))
+p = CubicInterpolant(xs, f.(xs), fp.(xs))
 num_gegenbauer = 20
 Gcoefs = zeros(num_gegenbauer, num_xs - 1, 4)
 populate_gegenbauer_transform!(Gcoefs, d, xs, 1e-2)
@@ -35,3 +35,13 @@ d = 3
 populate_gegenbauer_transform!(Gcoefs, d, xs)
 populate_gegenbauer_transform_d3!(Gcoefs_analytic, d, xs)
 @test norm(Gcoefs - Gcoefs_analytic) < 1e-8
+
+
+# Test the expansion of a polynomail
+
+p = x -> 4 * x^3 - x^2 - 3x + 2
+xx = -1:.001:1
+@test norm(p.(xx) - evaluate_polynomial.(Ref([2, -3, -1, 4]), xx, 0)) < 1e-8
+
+pderiv = x -> 12 * x^2 - 2 * x - 3
+@test norm(pderiv.(xx) .- evaluate_polynomial.(Ref([2, -3, -1, 4]), xx, 1)) < 1e-8
