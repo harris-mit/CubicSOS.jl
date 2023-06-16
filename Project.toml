@@ -6,6 +6,7 @@ version = "0.1.0"
 [deps]
 ApproxFun = "28f2ccd6-bb30-5033-b560-165f7b14dc2f"
 BSplines = "488c2830-172b-11e9-1591-253b8a7df96d"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
 Convex = "f65535da-76fb-5f13-bab9-19810c17039a"
 DynamicPolynomials = "7c1d4256-1411-5781-91ec-d7bc3513ac07"

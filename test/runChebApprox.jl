@@ -33,3 +33,12 @@ for i = 1:length(tlens)
     errors_lp[i] = norm(b[1:K] - x_lp)/norm(b[1:K])
 end
 
+# Approximate erf(x) with bump functions
+K = 19
+ts = range(-1,1,length = 32)
+bumps = [t -> if (abs(t-i) < 1) exp(-1/(1 - (t-i)^2)) else 0 end for i = range(-1,1,length=K)]
+bumpsderivs = [t -> if (abs(t-i) < 1) 2 * (i-t) * exp(-1/(1 - (t-i)^2))/(-1 + (t-i)^2) else 0 end for i = range(-1,1,length=K)]
+x_socp = get_bump_approx(ts, f, fp, fcnf4thdiv, bumps, bumpsderivs)
+x_lp = get_bump_approx_lp(ts, f, fcnsecdiv, bumps)
+print(string(x_socp)[2:(end - 1)])
+print(string(x_lp)[2:(end - 1)])

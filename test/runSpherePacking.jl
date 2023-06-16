@@ -3,6 +3,8 @@
 # minimum number of samples required for both the SOCP method and LP method to return
 # the true Delsarte bound.
 
+using BenchmarkTools
+
 # Solve the Delsarte sphere packing in a sphere.
 # Define a dictionary of the Delsarte bound for dimension n.
 true_delsarte = Dict(
@@ -95,7 +97,17 @@ for di in 1:length(ds)
     lp_ns[di] = get_num_required_points_lp(ds[di])
 end
 
-
+# rerun with times
+socp_times = zeros(length(ds))
+lp_times = zeros(length(ds))
+kmax = 20
+for di = 1:length(ds)
+    d = ds[di]
+    xs = range(-1, Amax, length = Int(socp_ns[di]))
+    socp_times[di] = @belapsed solve_delsarte_socp(d, kmax, xs);
+    xs = range(-1, Amax, length = Int(lp_ns[di]))
+    lp_times[di] = @belapsed solve_delsarte_lp(d, kmax, xs);
+end
 
 # Testing our SOCP certificate:
 gktrunc = value.(fk)[1:14] # Truncating off the ones that are basically 0 (and possibly slightly negative.)

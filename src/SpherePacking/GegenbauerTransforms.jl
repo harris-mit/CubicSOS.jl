@@ -5,6 +5,29 @@ export populate_gegenbauer_transform_analytic!, populate_gegenbauer_transform_d3
 export compute_from_expansion
 
 """
+    get_geg_basis_mat(K)
+Gets a matrix for Gegenbauer to monomials
+"""
+function get_geg_basis_mat(d, K, deriv_order)
+    G2M = zeros(K, K)
+    for i in 1:K
+        thisp = derivative(convert(Polynomials.Polynomial, scaled_gegenbauer(d, i-1)), deriv_order)
+        G2M[1:max((i - deriv_order),1),i] = thisp.coeffs
+    end
+    return G2M
+end
+"""
+    geg2bernstein(d, K, deriv_order)
+Returns the matrix that takes Gegenbauer coefficients to
+coefficients in the Bernstein basis
+"""
+function geg2bernstein(d, K, deriv_order)
+    G2M = get_geg_basis_mat(d, K, deriv_order);
+    B2M = get_bernstein_basis_mat(K);
+    return inv(B2M) * G2M
+end
+
+"""
     scaled_gegenbauer(d, k)
 Scale the C_k (with specialpolynomials) to Q_k
 """

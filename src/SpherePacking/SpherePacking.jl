@@ -41,13 +41,17 @@ function solve_delsarte_socp(d, kmax, xs)
     # Assuming a single spacing for a single delta
     @variable(model, delta)
     deltax = xs[2] - xs[1] # assuming even spacing
-    @constraint(model, delta >= compute_gegenbauer_derivative_bound(d, fk, 4) * deltax^4 / 384)
+    G2B = geg2bernstein(d, kmax, 4) # 4th order derivative bound
+    @variable(model, frthdivbound)
+    @constraint(model, frthdivbound .>= G2B * fk)
+    @constraint(model, frthdivbound .>= -G2B * fk)
+    @constraint(model, delta >=  frthdivbound * deltax^4 / 384)
+    # Below is more naive bound. Above uses the Bernstein basis.
+    #@constraint(model, delta >= compute_gegenbauer_derivative_bound(d, fk, 4) * deltax^4 / 384)
     constrain_interpolant_nonnegative!(model, -f - delta)
     @objective(model, Min, compute_from_expansion(d, fk, 1))
-
+    set_silent(model)
     optimize!(model)
-    @show termination_status(model)
-    @show primal_status(model)
     return value.(fk)
 end
 
@@ -75,7 +79,13 @@ function solve_delsarte_lp(d, kmax, xs)
     # Assuming a single spacing for a single delta (that is computed more crudely...)
     @variable(model, delta)
     deltax = xs[2] - xs[1] # assuming even spacing
-    @constraint(model, delta >= compute_gegenbauer_derivative_bound(d, fk, 2) * deltax^2 / 8)
+    @variable(model, seconddivbound)
+    G2B = geg2bernstein(d, kmax, 2) # 2nd order derivative bound
+    @constraint(model, seconddivbound .>= G2B * fk)
+    @constraint(model, seconddivbound .>= -G2B * fk)
+    @constraint(model, delta >= seconddivbound * deltax^2 / 8)
+    # below commented out uses a more crude bound
+    #@constraint(model, delta >= compute_gegenbauer_derivative_bound(d, fk, 2) * deltax^2 / 8)
     # certify just for half of interval -- the other half covered by next point
     @constraint(model, fvals .<= -delta)
 
@@ -91,10 +101,7 @@ function solve_delsarte_lp(d, kmax, xs)
     #     @constraint(model, fvals .<= -delta[xinterval])
     # end
     @objective(model, Min, compute_from_expansion(d, fk, 1))
-
+    set_silent(model)
     optimize!(model)
-    @show termination_status(model)
-    @show primal_status(model)
-    @show value.(delta)
     return value.(fk)
 end
