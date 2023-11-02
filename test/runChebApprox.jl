@@ -1,5 +1,6 @@
 # Run a polynomial approximation semi-infinite example
 using ApproxFun
+using Remez # For best minimax approximation
 
 # An approximation of sin(x) * exp(x)
 ts = range(-1, 1, length = 5)
@@ -17,28 +18,69 @@ x = get_cheb_approx(ts, f, fp, fcnf4thdiv, K)
 # An approximation of erf(x)
 f = x -> erf(x)
 fp = x -> 2/sqrt(pi) * exp(-x^2)
-fcnf4thdiv = 4.1
+fcnf4thdiv = 4.41
 fcnsecdiv = .968
-b = Fun(f, ApproxFun.Chebyshev()).coefficients
-K = 20#length(b)
+# Old way to compare parameters
+#b = Fun(f, ApproxFun.Chebyshev()).coefficients
+K = 14 #length(b)
+# Get minimax optimal approximation via Remez
+N,D,E,X = ratfn_minimax(f, [-1,1], K, 0);
+mmopt = x -> sum([x^(i-1) * N[i] for i = 1:lastindex(N)]) / D[1]
 # Using both LP and SOCP
-tlens = 2 .^ (2:9)
+tlens = 2 .^ (2:6) # larger t goes beyond numerical precision of Mosek defaults...
 errors_socp = zeros(length(tlens))
 errors_lp = zeros(length(tlens))
+# beyond this error doesn't really make sense...
 for i = 1:length(tlens)
     ts = range(-1, 1, length = tlens[i])
-    x_socp = get_cheb_approx(ts, f, fp, fcnf4thdiv, K)
-    x_lp = get_cheb_approx_lp(ts, f, fp, fcnsecdiv, K)
-    errors_socp[i] =  norm(b[1:K] - x_socp)/norm(b[1:K])
-    errors_lp[i] = norm(b[1:K] - x_lp)/norm(b[1:K])
+    x_socp, err_socp = get_cheb_approx(ts, f, fp, fcnf4thdiv, K)
+    x_lp, err_lp = get_cheb_approx_lp(ts, f, fp, fcnsecdiv, K)
+    socp_test = eval_cheb.(Ref(x_socp), testgrid, Ref(0))
+    lp_test = eval_cheb.(Ref(x_lp), testgrid, Ref(0))
+    errors_socp[i] = err_socp
+    errors_lp[i] = err_lp
+end
+[tlens errors_lp errors_socp]
+# Approximate erf(x) with gaussian "bump" functions (not truly bumps...)
+K = 10
+bumps = [t -> exp(-(t-i)^2) for i = range(-1,1,length=K)]
+bumpsderivs = [t -> -2*(t-i)*exp(-(t-i)^2) for i = range(-1,1,length=K)]
+tlens = 2 .^ (2:6) 
+errors_socp = zeros(length(tlens))
+errors_lp = zeros(length(tlens))
+for i = 1:lastindex(tlens)
+    ts = range(-1, 1, length = tlens[i])
+    x_socp, err_socp = get_bump_approx(ts, f, fp, fcnf4thdiv, bumps, bumpsderivs)
+    x_lp, err_lp = get_bump_approx_lp(ts, f, fcnsecdiv, bumps)
+    errors_socp[i] = err_socp
+    errors_lp[i] = err_lp
+end
+[tlens errors_lp errors_socp]
+
+# Certify the Newman bound for rational approximation to |x|
+h_lp = []
+h_socp = []
+for n = 4:12
+    println(n)
+    push!(h_socp, get_num_required_point(n, certify_newman_bound))
+    println("h_socp", h_socp)
+    push!(h_lp, get_num_required_point(n, certify_newman_bound_lp))
+    println("h_lp", h_lp)
+end
+certify_newman_bound(4, 1/2)
+certify_newman_bound_lp(n, 1/2)
+
+# This not in paper anymore
+# compare best Newman bounds
+h = .0001
+t_lp = []
+t_socp = []
+for n = 4:12
+    println(n)
+    push!(t_socp, CubicSOS.optimize_newman_bound(n, h))
+    println("t_socp", t_socp)
+    push!(t_lp, CubicSOS.optimize_newman_bound_lp(n, h))
+    println("t_lp", t_lp)
 end
 
-# Approximate erf(x) with bump functions
-K = 19
-ts = range(-1,1,length = 32)
-bumps = [t -> if (abs(t-i) < 1) exp(-1/(1 - (t-i)^2)) else 0 end for i = range(-1,1,length=K)]
-bumpsderivs = [t -> if (abs(t-i) < 1) 2 * (i-t) * exp(-1/(1 - (t-i)^2))/(-1 + (t-i)^2) else 0 end for i = range(-1,1,length=K)]
-x_socp = get_bump_approx(ts, f, fp, fcnf4thdiv, bumps, bumpsderivs)
-x_lp = get_bump_approx_lp(ts, f, fcnsecdiv, bumps)
-print(string(x_socp)[2:(end - 1)])
-print(string(x_lp)[2:(end - 1)])
+# Find a better approximation to |x| than the Newman rational approximation
