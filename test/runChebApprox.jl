@@ -70,8 +70,7 @@ end
 certify_newman_bound(4, 1/2)
 certify_newman_bound_lp(n, 1/2)
 
-# This not in paper anymore
-# compare best Newman bounds
+# Find best Newman bound
 h = .0001
 t_lp = []
 t_socp = []
@@ -83,4 +82,4 @@ for n = 4:12
     println("t_lp", t_lp)
 end
 
-# Find a better approximation to |x| than the Newman rational approximation
+# LP can't do it with this many grid points...
