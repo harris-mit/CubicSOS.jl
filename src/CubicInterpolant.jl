@@ -279,7 +279,7 @@ function Base.:+(cs::CubicInterpolant, t::VarOrExpressionOrConstant)
     return CubicInterpolant(cs.x_vals, cs.y_vals .+ t, cs.deriv_vals)
 end
 function Base.:+(t::VarOrExpressionOrConstant, cs::CubicInterpolant)
-    return t + cs
+    return cs + t
 end
 
 """
