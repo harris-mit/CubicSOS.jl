@@ -1,3 +1,5 @@
+using MathOptInterface
+
 # Implements a polynomial approximation to a given function
 # in the Chebyshev or sup norm. We also use a Chebyshev basis
 # for fun!
@@ -213,8 +215,9 @@ on the second derivative of f. ts are the points used for linear program.
 """
 function get_bump_approx_lp(ts, f, fcnsecdiv, bumps)
     model = Model()
-    set_optimizer(model, () -> Mosek.Optimizer(
-        MSK_IPAR_INTPNT_SOLVE_FORM = MSK_SOLVE_DUAL))
+    #set_optimizer(model, () -> Mosek.Optimizer(
+    #    MSK_IPAR_INTPNT_SOLVE_FORM = MSK_SOLVE_DUAL))
+    set_optimizer(model, () -> SCS.Optimizer())
     @variable(model, x[1:length(bumps)])
     @variable(model, err)
     @objective(model, Min, err)
@@ -222,8 +225,8 @@ function get_bump_approx_lp(ts, f, fcnsecdiv, bumps)
     @variable(model, delta)
     deltax = maximum(diff(ts))
     #The below bound is more naive -- just the l1 norm of the coefficients.
-    # Each bumps second derivative is bounded by .75
-    @constraint(model, [chebsecdivbound; x .* .75]
+    # Each bumps second derivative is bounded by 2, max occurs at origin
+    @constraint(model, [chebsecdivbound; x .* 2]
                         in MathOptInterface.NormOneCone(length(x)+1))
     @constraint(model, delta >= deltax^2 / 8 * (fcnsecdiv + chebsecdivbound))
     fvals = f.(ts)
@@ -430,4 +433,93 @@ function optimize_newman_bound_lp(n, h)
         return Inf
     end
     return value(t)
+end
+
+
+
+"""
+    find_rational_approx(n, h, t)
+Find rational approx within t error (which we search with binary search) with this degree n and h
+Use cheb basis for both numerator and denominator
+If verbose > 1, print out all SOCP solve information
+"""
+function find_rational_approx(n, h, t; verbose = 0)
+    ts = -1:h:1
+    C42B = cheb2bernstein(n, 4)
+    C32B = cheb2bernstein(n, 3)
+    @assert 0 in ts "We need 0 in ts for |x| to be differentiable on each subinterval"
+    model = Model()
+    set_optimizer(model, () -> Mosek.Optimizer(
+        MSK_IPAR_INTPNT_SOLVE_FORM = MSK_SOLVE_DUAL))
+    @variable(model, pcoefs[1:n])
+    @variable(model, qcoefs[1:n])
+    # establish a scale:
+    @constraint(model, qcoefs[1] == 1)
+    @variable(model, qsplineerr)
+    h = maximum(diff(ts))
+    qspline = CubicInterpolant(ts, eval_cheb.(Ref(qcoefs), ts, Ref(0)),
+        eval_cheb.(Ref(qcoefs), ts, Ref(1)))
+    @variable(model, q4)
+    @constraint(model, q4 .>= C42B * qcoefs)
+    @constraint(model, q4 .>= -C42B * qcoefs)
+    @constraint(model, qsplineerr >= h^4 / 384 * q4)
+    constrain_interpolant_nonnegative!(model, qspline - qsplineerr)
+
+    # Now we constrain that ||x| - p(x) / q(x)| <= t
+    # Need tq - p + |x|q >= 0 and  tq+ p - |x|q >= 0
+    @variable(model, pspline2err)
+    pfunc = x -> eval_cheb(pcoefs, x, 0)
+    ppfunc = x -> eval_cheb(pcoefs, x, 1)
+    qfunc = x -> eval_cheb(qcoefs, x, 0)
+    qpfunc = x -> eval_cheb(qcoefs, x, 1)
+    # Let g =|x|*q, compute the derivative
+    gp = x -> (if x >= 0 qfunc(x) + x*qpfunc(x) else -qfunc(x) - x*qpfunc(x) end)
+    # |x| < 1, so we can bound |x| by 1. (x * q)^(4) = 4q^(3) + xq^(4)
+    @variable(model, q3)
+    @constraint(model, q3 .>= C32B * qcoefs)
+    @constraint(model, q3 .>= -C32B * qcoefs)
+    pspline2 = CubicInterpolant(ts, t * qfunc.(ts) - pfunc.(ts) + abs.(ts) .* qfunc.(ts), 
+                                    t * qpfunc.(ts) - ppfunc.(ts) + gp.(ts))
+    pspline3 = CubicInterpolant(ts, t * qfunc.(ts) + pfunc.(ts) - abs.(ts) .* qfunc.(ts), 
+                                    t * qpfunc.(ts) + ppfunc.(ts) - gp.(ts))
+    @constraint(model, pspline2err >= h^4 / 384 * (2 * (q4 + 4 * q3) + t * q4))
+    constrain_interpolant_nonnegative!(model, pspline2 - pspline2err)
+    constrain_interpolant_nonnegative!(model, pspline3 - pspline2err)
+    if verbose <= 1
+        set_silent(model)
+    end
+    optimize!(model)
+    return (primal_status(model) == MathOptInterface.FEASIBLE_POINT, value.(pcoefs), value.(qcoefs))
+end
+
+"""
+find_best_rational_approx(n, h)
+Use binary search to find the best possible error t
+verbose = 1 prints out the error at each step, = 2 prints all SOCP solve information
+"""
+function find_best_rational_approx(n, h; verbose = 0)
+    t_best = t_curr = 1;
+    solvable = true
+    while solvable
+        t_curr = t_best / 2;
+        if verbose>0 print("testing t = $t_curr\n") end
+        solvable, p, q = find_rational_approx(n, h, t_curr, verbose = verbose)
+        if solvable
+            t_best = t_curr
+        end
+    end
+    # now search between t_curr and t_best
+    ub = t_best
+    lb = t_curr
+    while ub - lb > 1e-8
+        t_curr = (ub + lb) / 2
+        if verbose>0 print("testing t = $t_curr\n") end
+        solvable, p, q = find_rational_approx(n, h, t_curr, verbose = verbose)
+        if solvable
+            ub = t_curr
+        else
+            lb = t_curr
+        end
+    end
+    return t_curr
 end

@@ -50,7 +50,7 @@ errors_socp = zeros(length(tlens))
 errors_lp = zeros(length(tlens))
 for i = 1:lastindex(tlens)
     ts = range(-1, 1, length = tlens[i])
-    x_socp, err_socp = get_bump_approx(ts, f, fp, fcnf4thdiv, bumps, bumpsderivs)
+    #x_socp, err_socp = get_bump_approx(ts, f, fp, fcnf4thdiv, bumps, bumpsderivs)
     x_lp, err_lp = get_bump_approx_lp(ts, f, fcnsecdiv, bumps)
     errors_socp[i] = err_socp
     errors_lp[i] = err_lp
@@ -81,5 +81,54 @@ for n = 4:12
     push!(t_lp, CubicSOS.optimize_newman_bound_lp(n, h))
     println("t_lp", t_lp)
 end
-
 # LP can't do it with this many grid points...
+
+# Now estimate the best rational approximation of degree n
+# Some test cases:
+n = 10
+h = .1
+t = .01
+C2M = get_cheb_basis_mat(n, 0)
+
+issolved, pcoefs, qcoefs = find_best_rational_approx(n, h, t)
+p = C2M * pcoefs
+q = C2M * qcoefs  
+# Print as strings
+join(string.(p), ",")
+join(string.(q), ",")
+
+# Produce curves for paper:
+# Find best rational approx guarantees with varying number of grid points
+n = 8
+# 20k grid points 
+hs = [.1, .01, .001, .0001]
+t_opt = zeros(length(hs))
+for hi = 1:lastindex(hs)
+    h = hs[hi]
+    println(t_opt)
+    t_opt[hi] = find_best_rational_approx(n, h)
+end
+
+rt_opt = zeros(length(ns)) # rational optimal t
+nt_opt = zeros(length(ns)) # Newman optimal t
+ns = 4:7
+h = .01
+for ni = 1:lastindex(ns)
+    println(ni)
+    @show rt_opt
+    @show nt_opt
+    n = ns[ni]
+    rt_opt[ni] = find_best_rational_approx(n+1, h)
+    # If Newman is degree n, then the actual degree of rational approximation is n+1.
+    nt_opt[ni] = CubicSOS.optimize_newman_bound(n, h)
+end
+
+n = 7; h = .001;
+t = find_best_rational_approx(n, h)
+solved, p, q = find_rational_approx(n, h, t + 1e-3)
+C2M = get_cheb_basis_mat(n, 0)
+p = C2M * p
+q = C2M * q  
+# Print as strings
+join(string.(p), ",")
+join(string.(q), ",")
