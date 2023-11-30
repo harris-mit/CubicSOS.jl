@@ -52,7 +52,7 @@ for i = 1:lastindex(tlens)
     ts = range(-1, 1, length = tlens[i])
     #x_socp, err_socp = get_bump_approx(ts, f, fp, fcnf4thdiv, bumps, bumpsderivs)
     x_lp, err_lp = get_bump_approx_lp(ts, f, fcnsecdiv, bumps)
-    errors_socp[i] = err_socp
+    #errors_socp[i] = err_socp
     errors_lp[i] = err_lp
 end
 [tlens errors_lp errors_socp]
@@ -123,9 +123,10 @@ for ni = 1:lastindex(ns)
     nt_opt[ni] = CubicSOS.optimize_newman_bound(n, h)
 end
 
+# Find the best approximation of degree 6 with h = .001
 n = 7; h = .001;
 t = find_best_rational_approx(n, h)
-solved, p, q = find_rational_approx(n, h, t + 1e-3)
+solved, p, q = find_rational_approx(n, h, t)
 C2M = get_cheb_basis_mat(n, 0)
 p = C2M * p
 q = C2M * q  

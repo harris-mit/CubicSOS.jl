@@ -474,15 +474,18 @@ function find_rational_approx(n, h, t; verbose = 0)
     qpfunc = x -> eval_cheb(qcoefs, x, 1)
     # Let g =|x|*q, compute the derivative
     gp = x -> (if x >= 0 qfunc(x) + x*qpfunc(x) else -qfunc(x) - x*qpfunc(x) end)
-    # |x| < 1, so we can bound |x| by 1. (x * q)^(4) = 4q^(3) + xq^(4)
+    # |x| < 1, so we can bound |x| by 1. (x * q)^(4) = q^(4) + xq^(3)
     @variable(model, q3)
     @constraint(model, q3 .>= C32B * qcoefs)
     @constraint(model, q3 .>= -C32B * qcoefs)
+    @variable(model, p4)
+    @constraint(model, p4 .>= C42B * pcoefs)
+    @constraint(model, p4 .>= -C42B * pcoefs)
     pspline2 = CubicInterpolant(ts, t * qfunc.(ts) - pfunc.(ts) + abs.(ts) .* qfunc.(ts), 
                                     t * qpfunc.(ts) - ppfunc.(ts) + gp.(ts))
     pspline3 = CubicInterpolant(ts, t * qfunc.(ts) + pfunc.(ts) - abs.(ts) .* qfunc.(ts), 
                                     t * qpfunc.(ts) + ppfunc.(ts) - gp.(ts))
-    @constraint(model, pspline2err >= h^4 / 384 * (2 * (q4 + 4 * q3) + t * q4))
+    @constraint(model, pspline2err >= h^4 / 384 * (q4 + q3 + p4 + t * q4))
     constrain_interpolant_nonnegative!(model, pspline2 - pspline2err)
     constrain_interpolant_nonnegative!(model, pspline3 - pspline2err)
     if verbose <= 1
